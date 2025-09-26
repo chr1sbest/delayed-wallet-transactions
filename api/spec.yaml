@@ -1,0 +1,156 @@
+openapi: 3.0.0
+info:
+  title: Delayed Wallet Transaction API
+  version: 1.0.0
+  description: An API for scheduling and managing delayed wallet transactions.
+
+paths:
+  /transactions:
+    post:
+      summary: Schedule a new transaction
+      operationId: scheduleTransaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewTransaction'
+      responses:
+        '201':
+          description: Transaction successfully scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Invalid request
+
+  /wallets/{userId}:
+    get:
+      summary: Get wallet details for a user
+      operationId: getWalletByUserId
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Wallet details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '404':
+          description: Wallet not found
+
+  /transactions/{transactionId}:
+    get:
+      summary: Get transaction details
+      operationId: getTransactionById
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          description: Transaction not found
+
+components:
+  schemas:
+    NewTransaction:
+      type: object
+      properties:
+        from_user_id: 
+          type: string
+        to_user_id:
+          type: string
+        amount:
+          type: number
+          format: double
+          description: The amount to transfer.
+        currency:
+          type: string
+          example: "USD"
+        scheduled_at:
+          type: string
+          format: date-time
+          description: The time at which the transaction should be executed.
+      required:
+        - from_user_id
+        - to_user_id
+        - amount
+        - currency
+        - scheduled_at
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        from_user_id: 
+          type: string
+        to_user_id:
+          type: string
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        status:
+          type: string
+          enum: ["RESERVED", "PENDING_APPROVAL", "APPROVED", "REJECTED", "COMPLETED", "FAILED"]
+        scheduled_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - from_user_id
+        - to_user_id
+        - amount
+        - currency
+        - status
+        - scheduled_at
+        - created_at
+        - updated_at
+
+    Wallet:
+      type: object
+      properties:
+        user_id:
+          type: string
+        balance:
+          type: number
+          format: double
+        reserved:
+          type: number
+          format: double
+        currency:
+          type: string
+        version:
+          type: integer
+          format: int64
+          description: A version number for optimistic locking.
+      required:
+        - user_id
+        - balance
+        - reserved
+        - currency
+        - version
