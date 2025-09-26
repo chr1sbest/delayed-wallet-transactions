@@ -1,5 +1,0 @@
-package: api
-generate:
-  - chi-server
-  - types
-output: pkg/api/server.gen.go
