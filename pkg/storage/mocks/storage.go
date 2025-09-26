@@ -37,23 +37,23 @@ func (_m *Storage) CancelTransaction(ctx context.Context, txID uuid.UUID) error 
 }
 
 // CreateTransaction provides a mock function with given fields: ctx, newTx
-func (_m *Storage) CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Wallet, error) {
+func (_m *Storage) CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Transaction, error) {
 	ret := _m.Called(ctx, newTx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateTransaction")
 	}
 
-	var r0 *models.Wallet
+	var r0 *models.Transaction
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) (*models.Wallet, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) (*models.Transaction, error)); ok {
 		return rf(ctx, newTx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) *models.Wallet); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) *models.Transaction); ok {
 		r0 = rf(ctx, newTx)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Wallet)
+			r0 = ret.Get(0).(*models.Transaction)
 		}
 	}
 

@@ -3,17 +3,16 @@ package dynamodb
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/chris/delayed-wallet-transactions/pkg/mapping"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 )
 
 const (
@@ -22,7 +21,7 @@ const (
 )
 
 // CreateTransaction atomically reserves funds from the sender's wallet and creates a new transaction record.
-func (s *Store) CreateTransaction(ctx context.Context, tx *models.Transaction) (*models.Wallet, error) {
+func (s *Store) CreateTransaction(ctx context.Context, tx *models.Transaction) (*models.Transaction, error) {
 	// 1. Get the current state of the sender's wallet.
 	senderWallet, err := s.GetWallet(ctx, tx.FromUserId)
 	if err != nil {
@@ -86,21 +85,8 @@ func (s *Store) CreateTransaction(ctx context.Context, tx *models.Transaction) (
 		return nil, fmt.Errorf("failed to execute transaction: %w", err)
 	}
 
-	// 6. If the database transaction was successful, enqueue it for processing.
-	if s.Scheduler != nil {
-		if err := s.Scheduler.ScheduleTransaction(ctx, mapping.ToApiTransaction(tx)); err != nil {
-			log.Printf("CRITICAL: transaction %s created but failed to enqueue: %v", tx.Id, err)
-		}
-	}
 
-	// 7. Get the updated wallet to return to the user.
-	updatedWallet, err := s.GetWallet(ctx, tx.FromUserId)
-	if err != nil {
-		log.Printf("warning: transaction %s created but failed to retrieve updated wallet: %v", tx.Id, err)
-		return nil, nil
-	}
-
-	return updatedWallet, nil
+	return tx, nil
 }
 
 // GetTransaction retrieves a transaction from DynamoDB by its ID.
@@ -126,7 +112,6 @@ func (s *Store) GetTransaction(ctx context.Context, txID openapi_types.UUID) (*m
 
 	var tx models.Transaction
 	if err := attributevalue.UnmarshalMap(result.Item, &tx); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal transaction: %w", err)
 	}
 
 	return &tx, nil
@@ -139,7 +124,7 @@ func (s *Store) CancelTransaction(ctx context.Context, txID openapi_types.UUID) 
 	}
 
 	if tx.Status != models.RESERVED {
-		return ErrTransactionNotCancellable
+		return storage.ErrTransactionNotCancellable
 	}
 
 	senderWallet, err := s.GetWallet(ctx, tx.FromUserId)

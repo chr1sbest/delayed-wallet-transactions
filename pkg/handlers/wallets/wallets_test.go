@@ -3,6 +3,7 @@ package wallets_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -34,6 +35,38 @@ func TestCreateWallet(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, rr.Code)
 		mockStorage.AssertExpectations(t)
 	})
+
+	t.Run("Conflict", func(t *testing.T) {
+		mockStorage := new(mocks.Storage)
+		mockStorage.On("CreateWallet", mock.Anything, mock.Anything).Return(nil, errors.New("wallet already exists"))
+
+		h := wallets.NewWalletsHandler(mockStorage)
+
+		body, _ := json.Marshal(newApiWallet)
+		req := httptest.NewRequest(http.MethodPost, "/wallets", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+
+		h.CreateWallet(rr, req)
+
+		assert.Equal(t, http.StatusConflict, rr.Code)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("Storage Error", func(t *testing.T) {
+		mockStorage := new(mocks.Storage)
+		mockStorage.On("CreateWallet", mock.Anything, mock.Anything).Return(nil, errors.New("some other storage error"))
+
+		h := wallets.NewWalletsHandler(mockStorage)
+
+		body, _ := json.Marshal(newApiWallet)
+		req := httptest.NewRequest(http.MethodPost, "/wallets", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+
+		h.CreateWallet(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		mockStorage.AssertExpectations(t)
+	})
 }
 
 func TestDeleteWallet(t *testing.T) {
@@ -49,6 +82,21 @@ func TestDeleteWallet(t *testing.T) {
 		h.DeleteWallet(rr, req, "user-c")
 
 		assert.Equal(t, http.StatusNoContent, rr.Code)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("Not Found", func(t *testing.T) {
+		mockStorage := new(mocks.Storage)
+		mockStorage.On("DeleteWallet", mock.Anything, "user-c").Return(assert.AnError)
+
+		h := wallets.NewWalletsHandler(mockStorage)
+
+		req := httptest.NewRequest(http.MethodDelete, "/wallets/user-c", nil)
+		rr := httptest.NewRecorder()
+
+		h.DeleteWallet(rr, req, "user-c")
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
 		mockStorage.AssertExpectations(t)
 	})
 }
@@ -71,6 +119,24 @@ func TestListWallets(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		mockStorage.AssertExpectations(t)
 	})
+
+	t.Run("Storage Error", func(t *testing.T) {
+		// Arrange
+		mockStorage := new(mocks.Storage)
+		mockStorage.On("ListWallets", mock.Anything).Return(nil, assert.AnError)
+
+		h := wallets.NewWalletsHandler(mockStorage)
+
+		req := httptest.NewRequest(http.MethodGet, "/wallets", nil)
+		rr := httptest.NewRecorder()
+
+		// Act
+		h.ListWallets(rr, req)
+
+		// Assert
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		mockStorage.AssertExpectations(t)
+	})
 }
 
 func TestGetWalletByUserId(t *testing.T) {
@@ -88,6 +154,21 @@ func TestGetWalletByUserId(t *testing.T) {
 		h.GetWalletByUserId(rr, req, "user-c")
 
 		assert.Equal(t, http.StatusOK, rr.Code)
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("Not Found", func(t *testing.T) {
+		mockStorage := new(mocks.Storage)
+		mockStorage.On("GetWallet", mock.Anything, "user-c").Return(nil, assert.AnError)
+
+		h := wallets.NewWalletsHandler(mockStorage)
+
+		req := httptest.NewRequest(http.MethodGet, "/wallets/user-c", nil)
+		rr := httptest.NewRecorder()
+
+		h.GetWalletByUserId(rr, req, "user-c")
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
 		mockStorage.AssertExpectations(t)
 	})
 }

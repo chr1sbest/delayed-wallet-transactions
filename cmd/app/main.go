@@ -21,8 +21,7 @@ import (
 
 func main() {
 	// Load environment variables from .env file (useful for local testing).
-	err := godotenv.Load()
-	if err != nil {
+	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, relying on environment variables.")
 	}
 
@@ -32,7 +31,7 @@ func main() {
 	ledgerTable := getEnv("DYNAMODB_LEDGER_TABLE_NAME", "LedgerEntries")
 	sqsQueueURL := getEnv("SQS_QUEUE_URL", "")
 
-	// Load the AWS SDK configuration, specifying the 'backendbest' profile.
+	// Load the AWS SDK configuration.
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile("backendbest"))
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
@@ -43,9 +42,9 @@ func main() {
 	sqsClient := sqs.NewFromConfig(cfg)
 
 	// Initialize components.
+	store := dydbstore.New(dbClient, transactionsTable, walletsTable, ledgerTable)
 	sqsScheduler := scheduler.NewSQSScheduler(sqsClient, sqsQueueURL)
-	store := dydbstore.New(dbClient, sqsScheduler, transactionsTable, walletsTable, ledgerTable)
-	apiHandler := handlers.NewApiHandler(store)
+	apiHandler := handlers.NewApiHandler(store, sqsScheduler)
 
 	// Use oapi-codegen's generated handler to mount the API routes.
 	apiRouter := api.Handler(apiHandler)
@@ -69,7 +68,7 @@ func main() {
 	// Add an endpoint to serve the raw spec file.
 	chiRouter.Get("/docs/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/x-yaml")
-		w.Write(spec)
+		_, _ = w.Write(spec)
 	})
 
 	// Start the server.

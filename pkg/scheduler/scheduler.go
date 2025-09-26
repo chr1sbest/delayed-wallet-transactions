@@ -6,8 +6,10 @@ import (
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 )
 
-// Scheduler defines the interface for a component that schedules a transaction for later processing.
-type Scheduler interface {
-	// ScheduleTransaction enqueues a transaction for asynchronous processing.
-	ScheduleTransaction(ctx context.Context, tx *api.Transaction) error
+import "time"
+
+// CronScheduler defines the interface for a component that schedules a transaction for later processing.
+type CronScheduler interface {
+	// ScheduleTransaction enqueues a transaction for asynchronous processing with an optional delay.
+	ScheduleTransaction(ctx context.Context, tx *api.Transaction, delay time.Duration) error
 }

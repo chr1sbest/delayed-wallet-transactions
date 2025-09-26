@@ -1,38 +1,35 @@
 package dynamodb
 
 import (
-	"errors"
-
+	"context"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
-	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 )
+
+type DynamoDBAPI interface {
+	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
+	DeleteItem(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
+	Scan(ctx context.Context, params *dynamodb.ScanInput, optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
+	TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
+	Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+}
+
+//go:generate mockery --name DynamoDBAPI --output ./mocks --outpkg mocks --case=underscore
 
 // Store implements the Storage interface using AWS DynamoDB.
 type Store struct {
-	Client                *dynamodb.Client
-	Scheduler             scheduler.Scheduler
+	Client                DynamoDBAPI
 	TransactionsTableName string
 	WalletsTableName      string
 	LedgerTableName       string
 }
 
 // New creates a new Store.
-func New(client *dynamodb.Client, scheduler scheduler.Scheduler, transactionsTable, walletsTable, ledgerTable string) *Store {
+func New(client DynamoDBAPI, transactionsTable, walletsTable, ledgerTable string) *Store {
 	return &Store{
 		Client:                client,
-		Scheduler:             scheduler,
 		TransactionsTableName: transactionsTable,
 		WalletsTableName:      walletsTable,
 		LedgerTableName:       ledgerTable,
 	}
 }
-
-// Make sure we conform to the interface
-var _ storage.Storage = (*Store)(nil)
-
-// ErrInsufficientFunds is returned when a wallet has an insufficient balance for a transaction.
-var ErrInsufficientFunds = errors.New("insufficient funds")
-
-// ErrTransactionNotCancellable is returned when a transaction cannot be cancelled, e.g., because it's already completed or cancelled.
-var ErrTransactionNotCancellable = errors.New("transaction not in a cancellable state")

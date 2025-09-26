@@ -4,22 +4,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/mapping"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage"
+	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // TransactionsHandler holds the dependencies for transaction-related handlers.
 type TransactionsHandler struct {
-	Store storage.Storage
+	Store     storage.Storage
+	Scheduler scheduler.CronScheduler
 }
 
 // NewTransactionsHandler creates a new TransactionsHandler.
-func NewTransactionsHandler(store storage.Storage) *TransactionsHandler {
-	return &TransactionsHandler{Store: store}
+func NewTransactionsHandler(store storage.Storage, scheduler scheduler.CronScheduler) *TransactionsHandler {
+	return &TransactionsHandler{Store: store, Scheduler: scheduler}
 }
 
 // ScheduleTransaction handles the logic for scheduling a new transaction.
@@ -32,7 +36,7 @@ func (h *TransactionsHandler) ScheduleTransaction(w http.ResponseWriter, r *http
 
 	domainTx := mapping.ToDomainNewTransaction(&newTx)
 
-	updatedWallet, err := h.Store.CreateTransaction(r.Context(), domainTx)
+	createdTx, err := h.Store.CreateTransaction(r.Context(), domainTx)
 	if err != nil {
 		if errors.Is(err, storage.ErrInsufficientFunds) {
 			http.Error(w, "Insufficient funds", http.StatusUnprocessableEntity)
@@ -42,10 +46,22 @@ func (h *TransactionsHandler) ScheduleTransaction(w http.ResponseWriter, r *http
 		return
 	}
 
-	apiWallet := mapping.ToApiWallet(updatedWallet)
+	// If the database transaction was successful, enqueue it for processing.
+	if h.Scheduler != nil {
+		delay := time.Duration(0)
+		if newTx.DelaySeconds != nil {
+			delay = time.Duration(*newTx.DelaySeconds) * time.Second
+		}
+		if err := h.Scheduler.ScheduleTransaction(r.Context(), mapping.ToApiTransaction(createdTx), delay); err != nil {
+			log.Printf("CRITICAL: transaction %s created but failed to enqueue: %v", createdTx.Id, err)
+		}
+	}
+
+	// Map the domain model response back to the API model and respond.
+	apiTx := mapping.ToApiTransaction(createdTx)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(apiWallet); err != nil {
+	if err := json.NewEncoder(w).Encode(apiTx); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to write response: %v", err), http.StatusInternalServerError)
 	}
 }

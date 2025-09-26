@@ -25,24 +25,27 @@ const (
 
 // LedgerEntry defines model for LedgerEntry.
 type LedgerEntry struct {
-	AccountId     string    `json:"account_id"`
-	Credit        *int64    `json:"credit,omitempty"`
-	Debit         *int64    `json:"debit,omitempty"`
-	Description   string    `json:"description"`
-	EntryId       string    `json:"entry_id"`
-	Timestamp     time.Time `json:"timestamp"`
-	TransactionId string    `json:"transaction_id"`
+	AccountId     *string    `json:"account_id,omitempty"`
+	Balance       *int64     `json:"balance,omitempty"`
+	Credit        *int64     `json:"credit,omitempty"`
+	Debit         *int64     `json:"debit,omitempty"`
+	Description   *string    `json:"description,omitempty"`
+	EntryId       *string    `json:"entry_id,omitempty"`
+	Reserved      *int64     `json:"reserved,omitempty"`
+	Timestamp     *time.Time `json:"timestamp,omitempty"`
+	TransactionId *string    `json:"transaction_id,omitempty"`
+	Version       *int64     `json:"version,omitempty"`
 }
 
 // NewTransaction defines model for NewTransaction.
 type NewTransaction struct {
-	// Amount The amount to transfer.
-	Amount     int64  `json:"amount"`
-	FromUserId string `json:"from_user_id"`
+	// Amount The amount of the transaction in the smallest currency unit (e.g., cents).
+	Amount int64 `json:"amount"`
 
-	// ScheduledAt The time at which the transaction should be executed.
-	ScheduledAt time.Time `json:"scheduled_at"`
-	ToUserId    string    `json:"to_user_id"`
+	// DelaySeconds An optional delay in seconds before the transaction is processed. Maximum 900 seconds (15 minutes).
+	DelaySeconds *int32 `json:"delay_seconds,omitempty"`
+	FromUserId   string `json:"from_user_id"`
+	ToUserId     string `json:"to_user_id"`
 }
 
 // NewWallet defines model for NewWallet.
@@ -52,17 +55,14 @@ type NewWallet struct {
 
 // Transaction defines model for Transaction.
 type Transaction struct {
-	Amount      int64              `json:"amount"`
-	CreatedAt   time.Time          `json:"created_at"`
-	FromUserId  string             `json:"from_user_id"`
-	Id          openapi_types.UUID `json:"id"`
-	ScheduledAt time.Time          `json:"scheduled_at"`
-	Status      TransactionStatus  `json:"status"`
-	ToUserId    string             `json:"to_user_id"`
-
-	// Ttl A Unix timestamp to enable TTL for automatic record deletion.
-	Ttl       *int64    `json:"ttl,omitempty"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Amount     *int64              `json:"amount,omitempty"`
+	CreatedAt  *time.Time          `json:"created_at,omitempty"`
+	FromUserId *string             `json:"from_user_id,omitempty"`
+	Id         *openapi_types.UUID `json:"id,omitempty"`
+	Status     *TransactionStatus  `json:"status,omitempty"`
+	ToUserId   *string             `json:"to_user_id,omitempty"`
+	Ttl        *int64              `json:"ttl,omitempty"`
+	UpdatedAt  *time.Time          `json:"updated_at,omitempty"`
 }
 
 // TransactionStatus defines model for Transaction.Status.
@@ -70,20 +70,18 @@ type TransactionStatus string
 
 // Wallet defines model for Wallet.
 type Wallet struct {
-	Balance  int64 `json:"balance"`
-	Reserved int64 `json:"reserved"`
+	// Balance The wallet balance in the smallest currency unit (e.g., cents).
+	Balance *int64 `json:"balance,omitempty"`
 
-	// Ttl A Unix timestamp to enable TTL for automatic record deletion.
-	Ttl    *int64 `json:"ttl,omitempty"`
-	UserId string `json:"user_id"`
-
-	// Version A version number for optimistic locking.
-	Version int64 `json:"version"`
+	// Reserved The reserved balance in the smallest currency unit (e.g., cents).
+	Reserved *int64  `json:"reserved,omitempty"`
+	UserId   *string `json:"user_id,omitempty"`
+	Version  *int64  `json:"version,omitempty"`
 }
 
 // ListLedgerEntriesParams defines parameters for ListLedgerEntries.
 type ListLedgerEntriesParams struct {
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ScheduleTransactionJSONRequestBody defines body for ScheduleTransaction for application/json ContentType.
@@ -100,27 +98,27 @@ type ServerInterface interface {
 	// Schedule a new transaction
 	// (POST /transactions)
 	ScheduleTransaction(w http.ResponseWriter, r *http.Request)
-	// Get transaction details
+	// Cancel a transaction by its ID
+	// (DELETE /transactions/{transactionId})
+	CancelTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID)
+	// Get a transaction by its ID
 	// (GET /transactions/{transactionId})
 	GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID)
-	// Cancel a transaction
-	// (POST /transactions/{transactionId})
-	CancelTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID)
+	// List all transactions for a user
+	// (GET /users/{userId}/transactions)
+	ListTransactionsByUserId(w http.ResponseWriter, r *http.Request, userId string)
 	// List all wallets
 	// (GET /wallets)
 	ListWallets(w http.ResponseWriter, r *http.Request)
 	// Create a new wallet
 	// (POST /wallets)
 	CreateWallet(w http.ResponseWriter, r *http.Request)
-	// Delete a wallet
+	// Delete a wallet by user ID
 	// (DELETE /wallets/{userId})
 	DeleteWallet(w http.ResponseWriter, r *http.Request, userId string)
-	// Get wallet details for a user
+	// Get a wallet by user ID
 	// (GET /wallets/{userId})
 	GetWalletByUserId(w http.ResponseWriter, r *http.Request, userId string)
-	// List all transactions for a user
-	// (GET /wallets/{userId}/transactions)
-	ListTransactionsByUserId(w http.ResponseWriter, r *http.Request, userId string)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -139,15 +137,21 @@ func (_ Unimplemented) ScheduleTransaction(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Get transaction details
+// Cancel a transaction by its ID
+// (DELETE /transactions/{transactionId})
+func (_ Unimplemented) CancelTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a transaction by its ID
 // (GET /transactions/{transactionId})
 func (_ Unimplemented) GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Cancel a transaction
-// (POST /transactions/{transactionId})
-func (_ Unimplemented) CancelTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID) {
+// List all transactions for a user
+// (GET /users/{userId}/transactions)
+func (_ Unimplemented) ListTransactionsByUserId(w http.ResponseWriter, r *http.Request, userId string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -163,21 +167,15 @@ func (_ Unimplemented) CreateWallet(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Delete a wallet
+// Delete a wallet by user ID
 // (DELETE /wallets/{userId})
 func (_ Unimplemented) DeleteWallet(w http.ResponseWriter, r *http.Request, userId string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Get wallet details for a user
+// Get a wallet by user ID
 // (GET /wallets/{userId})
 func (_ Unimplemented) GetWalletByUserId(w http.ResponseWriter, r *http.Request, userId string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// List all transactions for a user
-// (GET /wallets/{userId}/transactions)
-func (_ Unimplemented) ListTransactionsByUserId(w http.ResponseWriter, r *http.Request, userId string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -231,6 +229,31 @@ func (siw *ServerInterfaceWrapper) ScheduleTransaction(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// CancelTransactionById operation middleware
+func (siw *ServerInterfaceWrapper) CancelTransactionById(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "transactionId" -------------
+	var transactionId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "transactionId", chi.URLParam(r, "transactionId"), &transactionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "transactionId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelTransactionById(w, r, transactionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetTransactionById operation middleware
 func (siw *ServerInterfaceWrapper) GetTransactionById(w http.ResponseWriter, r *http.Request) {
 
@@ -256,22 +279,22 @@ func (siw *ServerInterfaceWrapper) GetTransactionById(w http.ResponseWriter, r *
 	handler.ServeHTTP(w, r)
 }
 
-// CancelTransactionById operation middleware
-func (siw *ServerInterfaceWrapper) CancelTransactionById(w http.ResponseWriter, r *http.Request) {
+// ListTransactionsByUserId operation middleware
+func (siw *ServerInterfaceWrapper) ListTransactionsByUserId(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 
-	// ------------- Path parameter "transactionId" -------------
-	var transactionId openapi_types.UUID
+	// ------------- Path parameter "userId" -------------
+	var userId string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "transactionId", chi.URLParam(r, "transactionId"), &transactionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "transactionId", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
 		return
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CancelTransactionById(w, r, transactionId)
+		siw.Handler.ListTransactionsByUserId(w, r, userId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -350,31 +373,6 @@ func (siw *ServerInterfaceWrapper) GetWalletByUserId(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetWalletByUserId(w, r, userId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListTransactionsByUserId operation middleware
-func (siw *ServerInterfaceWrapper) ListTransactionsByUserId(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-
-	// ------------- Path parameter "userId" -------------
-	var userId string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListTransactionsByUserId(w, r, userId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -504,10 +502,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/transactions", wrapper.ScheduleTransaction)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/transactions/{transactionId}", wrapper.CancelTransactionById)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/transactions/{transactionId}", wrapper.GetTransactionById)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/transactions/{transactionId}", wrapper.CancelTransactionById)
+		r.Get(options.BaseURL+"/users/{userId}/transactions", wrapper.ListTransactionsByUserId)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/wallets", wrapper.ListWallets)
@@ -520,9 +521,6 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/wallets/{userId}", wrapper.GetWalletByUserId)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/wallets/{userId}/transactions", wrapper.ListTransactionsByUserId)
 	})
 
 	return r

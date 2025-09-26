@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -25,20 +26,26 @@ func NewSQSScheduler(client *sqs.Client, queueURL string) *SQSScheduler {
 }
 
 // Make sure we conform to the interface
-var _ Scheduler = (*SQSScheduler)(nil)
+var _ CronScheduler = (*SQSScheduler)(nil)
 
 // ScheduleTransaction sends the transaction to an SQS queue for later processing.
-func (s *SQSScheduler) ScheduleTransaction(ctx context.Context, tx *api.Transaction) error {
+func (s *SQSScheduler) ScheduleTransaction(ctx context.Context, tx *api.Transaction, delay time.Duration) error {
 	// Marshal the transaction to JSON.
 	body, err := json.Marshal(tx)
 	if err != nil {
 		return fmt.Errorf("failed to marshal transaction for SQS: %w", err)
 	}
 
+	// Validate the delay.
+	if delay < 0 || delay > 15*time.Minute {
+		return fmt.Errorf("delay must be between 0 and 15 minutes")
+	}
+
 	// Send the message to SQS.
 	_, err = s.Client.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:    aws.String(s.QueueURL),
-		MessageBody: aws.String(string(body)),
+		QueueUrl:     aws.String(s.QueueURL),
+		MessageBody:  aws.String(string(body)),
+		DelaySeconds: int32(delay.Seconds()),
 	})
 
 	if err != nil {

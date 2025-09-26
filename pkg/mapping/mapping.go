@@ -7,15 +7,15 @@ import (
 
 // ToApiTransaction converts a domain Transaction model to an API Transaction model.
 func ToApiTransaction(tx *models.Transaction) *api.Transaction {
+	status := api.TransactionStatus(tx.Status)
 	return &api.Transaction{
-		Id:          tx.Id,
-		FromUserId:  tx.FromUserId,
-		ToUserId:    tx.ToUserId,
-		Amount:      tx.Amount,
-		Status:      api.TransactionStatus(tx.Status),
-		ScheduledAt: tx.ScheduledAt,
-		CreatedAt:   tx.CreatedAt,
-		UpdatedAt:   tx.UpdatedAt,
+		Id:          &tx.Id,
+		FromUserId:  &tx.FromUserId,
+		ToUserId:    &tx.ToUserId,
+		Amount:      &tx.Amount,
+		Status:      &status,
+		CreatedAt:   &tx.CreatedAt,
+		UpdatedAt:   &tx.UpdatedAt,
 	}
 }
 
@@ -26,17 +26,16 @@ func ToDomainNewTransaction(newTx *api.NewTransaction) *models.Transaction {
 		FromUserId:  newTx.FromUserId,
 		ToUserId:    newTx.ToUserId,
 		Amount:      newTx.Amount,
-		ScheduledAt: newTx.ScheduledAt,
 	}
 }
 
 // ToApiWallet converts a domain Wallet model to an API Wallet model.
 func ToApiWallet(wallet *models.Wallet) *api.Wallet {
 	return &api.Wallet{
-		UserId:   wallet.UserId,
-		Balance:  wallet.Balance,
-		Reserved: wallet.Reserved,
-		Version:  wallet.Version,
+		UserId:   &wallet.UserId,
+		Balance:  &wallet.Balance,
+		Reserved: &wallet.Reserved,
+		Version:  &wallet.Version,
 	}
 }
 
@@ -52,25 +51,24 @@ func ToDomainNewWallet(newWallet *api.NewWallet) *models.Wallet {
 // ToDomainTransaction converts an API Transaction model to a domain Transaction model.
 func ToApiLedgerEntry(entry *models.LedgerEntry) *api.LedgerEntry {
 	return &api.LedgerEntry{
-		TransactionId: entry.TransactionID,
-		EntryId:       entry.EntryID,
-		AccountId:     entry.AccountID,
+		TransactionId: &entry.TransactionID,
+		EntryId:       &entry.EntryID,
+		AccountId:     &entry.AccountID,
 		Debit:         &entry.Debit,
 		Credit:        &entry.Credit,
-		Description:   entry.Description,
-		Timestamp:     entry.Timestamp,
+		Description:   &entry.Description,
+		Timestamp:     &entry.Timestamp,
 	}
 }
 
 func ToDomainTransaction(tx *api.Transaction) *models.Transaction {
 	return &models.Transaction{
-		Id:          tx.Id,
-		FromUserId:  tx.FromUserId,
-		ToUserId:    tx.ToUserId,
-		Amount:      tx.Amount,
-		Status:      models.TransactionStatus(tx.Status),
-		ScheduledAt: tx.ScheduledAt,
-		CreatedAt:   tx.CreatedAt,
-		UpdatedAt:   tx.UpdatedAt,
+		Id:          *tx.Id,
+		FromUserId:  *tx.FromUserId,
+		ToUserId:    *tx.ToUserId,
+		Amount:      *tx.Amount,
+		Status:      models.TransactionStatus(*tx.Status),
+		CreatedAt:   *tx.CreatedAt,
+		UpdatedAt:   *tx.UpdatedAt,
 	}
 }

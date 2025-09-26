@@ -10,8 +10,8 @@ import (
 
 // Storage defines the interface for interacting with the transaction data layer.
 type Storage interface {
-	// CreateTransaction creates a new transaction and returns the updated sender's wallet.
-	CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Wallet, error)
+	// CreateTransaction creates a new transaction and returns the created transaction.
+	CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Transaction, error)
 
 	// GetTransaction retrieves a transaction by its ID.
 	GetTransaction(ctx context.Context, txID openapi_types.UUID) (*models.Transaction, error)
@@ -43,3 +43,5 @@ type Storage interface {
 	// ListLedgerEntries retrieves the most recent ledger entries.
 	ListLedgerEntries(ctx context.Context, limit int32) ([]models.LedgerEntry, error)
 }
+
+

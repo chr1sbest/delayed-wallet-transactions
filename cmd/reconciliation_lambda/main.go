@@ -18,7 +18,7 @@ import (
 )
 
 var store storage.Storage
-var sqsScheduler scheduler.Scheduler
+var sqsScheduler scheduler.CronScheduler
 
 const stuckTransactionThreshold = 20 * time.Minute
 
@@ -45,7 +45,7 @@ func init() {
 	walletsTable := os.Getenv("DYNAMODB_WALLETS_TABLE_NAME")
 	ledgerTable := os.Getenv("DYNAMODB_LEDGER_TABLE_NAME")
 
-	store = dydbstore.New(dbClient, sqsScheduler, transactionsTable, walletsTable, ledgerTable)
+	store = dydbstore.New(dbClient, transactionsTable, walletsTable, ledgerTable)
 }
 
 // HandleRequest is triggered by an EventBridge Schedule.
@@ -67,7 +67,7 @@ func HandleRequest(ctx context.Context) error {
 
 	for _, tx := range stuckTxs {
 		apiTx := mapping.ToApiTransaction(&tx)
-		if err := sqsScheduler.ScheduleTransaction(ctx, apiTx); err != nil {
+		if err := sqsScheduler.ScheduleTransaction(ctx, apiTx, 0); err != nil {
 			log.Printf("ERROR: failed to re-enqueue transaction %s: %v", tx.Id, err)
 			// Continue to the next transaction, don't let one failure stop the whole batch.
 			continue

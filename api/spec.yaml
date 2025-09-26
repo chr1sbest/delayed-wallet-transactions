@@ -1,69 +1,105 @@
 openapi: 3.0.0
 info:
-  title: Delayed Wallet Transaction API
-  version: 1.0.0
-  description: An API for scheduling and managing delayed wallet transactions.
+  title: "Delayed Wallet API"
+  version: "1.0.0"
+  description: "An API for a delayed wallet system, allowing for transactions to be scheduled and processed asynchronously."
 
 paths:
   /transactions:
     post:
-      summary: Schedule a new transaction
+      summary: "Schedule a new transaction"
       operationId: scheduleTransaction
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NewTransaction'
+              $ref: "#/components/schemas/NewTransaction"
       responses:
         '201':
-          description: Transaction successfully scheduled and funds reserved
+          description: "Transaction created successfully."
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Wallet'
+                $ref: "#/components/schemas/Transaction"
         '400':
-          description: Invalid request
+          description: "Invalid request body"
         '422':
-          description: Unprocessable Entity (e.g., insufficient funds)
+          description: "Insufficient funds or other processing error"
 
-  /wallets:
+  /transactions/{transactionId}:
     get:
-      summary: List all wallets
-      operationId: listWallets
+      summary: "Get a transaction by its ID"
+      operationId: getTransactionById
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
-          description: A list of wallets
+          description: "A single transaction"
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Wallet'
+                $ref: "#/components/schemas/Transaction"
+        '404':
+          description: "Transaction not found"
+    delete:
+      summary: "Cancel a transaction by its ID"
+      operationId: cancelTransactionById
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: "Transaction cancelled successfully"
+        '404':
+          description: "Transaction not found or not in a cancellable state"
+        '409':
+          description: "Transaction is not in a cancellable state"
+
+  /wallets:
     post:
-      summary: Create a new wallet
+      summary: "Create a new wallet"
       operationId: createWallet
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NewWallet'
+              $ref: "#/components/schemas/NewWallet"
       responses:
         '201':
-          description: Wallet successfully created
+          description: "Wallet created successfully"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Wallet'
-        '400':
-          description: Invalid request
+                $ref: "#/components/schemas/Wallet"
         '409':
-          description: Wallet for this user already exists
+          description: "Wallet for this user already exists"
+    get:
+      summary: "List all wallets"
+      operationId: listWallets
+      responses:
+        '200':
+          description: "A list of wallets"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Wallet"
 
   /wallets/{userId}:
     get:
-      summary: Get wallet details for a user
+      summary: "Get a wallet by user ID"
       operationId: getWalletByUserId
       parameters:
         - name: userId
@@ -73,15 +109,15 @@ paths:
             type: string
       responses:
         '200':
-          description: Wallet details
+          description: "A single wallet"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Wallet'
+                $ref: "#/components/schemas/Wallet"
         '404':
-          description: Wallet not found
+          description: "Wallet not found"
     delete:
-      summary: Delete a wallet
+      summary: "Delete a wallet by user ID"
       operationId: deleteWallet
       parameters:
         - name: userId
@@ -91,13 +127,13 @@ paths:
             type: string
       responses:
         '204':
-          description: Wallet successfully deleted
+          description: "Wallet deleted successfully"
         '404':
-          description: Wallet not found
+          description: "Wallet not found"
 
-  /wallets/{userId}/transactions:
+  /users/{userId}/transactions:
     get:
-      summary: List all transactions for a user
+      summary: "List all transactions for a user"
       operationId: listTransactionsByUserId
       parameters:
         - name: userId
@@ -107,19 +143,17 @@ paths:
             type: string
       responses:
         '200':
-          description: A list of transactions for the user
+          description: "A list of transactions for the user"
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Transaction'
-        '404':
-          description: User not found
+                  $ref: "#/components/schemas/Transaction"
 
   /ledger:
     get:
-      summary: List recent ledger entries
+      summary: "List recent ledger entries"
       operationId: listLedgerEntries
       parameters:
         - name: limit
@@ -127,77 +161,20 @@ paths:
           required: false
           schema:
             type: integer
+            format: int32
             default: 20
       responses:
         '200':
-          description: A list of recent ledger entries
+          description: "A list of recent ledger entries"
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/LedgerEntry'
-
-  /transactions/{transactionId}:
-    parameters:
-      - name: transactionId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    get:
-      summary: Get transaction details
-      operationId: getTransactionById
-      responses:
-        '200':
-          description: Transaction details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-        '404':
-          description: Transaction not found
-    post:
-      summary: Cancel a transaction
-      operationId: cancelTransactionById
-      responses:
-        '204':
-          description: Transaction cancelled successfully
-        '404':
-          description: Transaction not found
-        '409':
-          description: Transaction not in a cancellable state
+                  $ref: "#/components/schemas/LedgerEntry"
 
 components:
   schemas:
-    LedgerEntry:
-      type: object
-      properties:
-        transaction_id:
-          type: string
-        entry_id:
-          type: string
-        account_id:
-          type: string
-        debit:
-          type: integer
-          format: int64
-        credit:
-          type: integer
-          format: int64
-        description:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-      required:
-        - transaction_id
-        - entry_id
-        - account_id
-        - description
-        - timestamp
-
     NewWallet:
       type: object
       properties:
@@ -205,6 +182,23 @@ components:
           type: string
       required:
         - user_id
+
+    Wallet:
+      type: object
+      properties:
+        user_id:
+          type: string
+        balance:
+          type: integer
+          format: int64
+          description: "The wallet balance in the smallest currency unit (e.g., cents)."
+        reserved:
+          type: integer
+          format: int64
+          description: "The reserved balance in the smallest currency unit (e.g., cents)."
+        version:
+          type: integer
+          format: int64
 
     NewTransaction:
       type: object
@@ -216,16 +210,19 @@ components:
         amount:
           type: integer
           format: int64
-          description: The amount to transfer.
-        scheduled_at:
-          type: string
-          format: date-time
-          description: The time at which the transaction should be executed.
+          description: "The amount of the transaction in the smallest currency unit (e.g., cents)."
+          example: 10050
+        delay_seconds:
+          type: integer
+          format: int32
+          description: "An optional delay in seconds before the transaction is processed. Maximum 900 seconds (15 minutes)."
+          example: 60
+          minimum: 0
+          maximum: 900
       required:
         - from_user_id
         - to_user_id
         - amount
-        - scheduled_at
 
     Transaction:
       type: object
@@ -243,9 +240,6 @@ components:
         status:
           type: string
           enum: ["RESERVED", "PENDING_APPROVAL", "APPROVED", "REJECTED", "COMPLETED", "FAILED"]
-        scheduled_at:
-          type: string
-          format: date-time
         created_at:
           type: string
           format: date-time
@@ -255,21 +249,26 @@ components:
         ttl:
           type: integer
           format: int64
-          description: A Unix timestamp to enable TTL for automatic record deletion.
-      required:
-        - id
-        - from_user_id
-        - to_user_id
-        - amount
-        - status
-        - scheduled_at
-        - created_at
-        - updated_at
 
-    Wallet:
+    LedgerEntry:
       type: object
       properties:
-        user_id:
+        entry_id:
+          type: string
+        transaction_id:
+          type: string
+        account_id:
+          type: string
+        debit:
+          type: integer
+          format: int64
+        credit:
+          type: integer
+          format: int64
+        timestamp:
+          type: string
+          format: date-time
+        description:
           type: string
         balance:
           type: integer
@@ -280,13 +279,3 @@ components:
         version:
           type: integer
           format: int64
-          description: A version number for optimistic locking.
-        ttl:
-          type: integer
-          format: int64
-          description: A Unix timestamp to enable TTL for automatic record deletion.
-      required:
-        - user_id
-        - balance
-        - reserved
-        - version

@@ -25,7 +25,6 @@ type Transaction struct {
 	ToUserId    string             `dynamodbav:"to_user_id"`
 	Amount      int64              `dynamodbav:"amount"`
 	Status      TransactionStatus  `dynamodbav:"status"`
-	ScheduledAt time.Time          `dynamodbav:"scheduled_at"`
 	CreatedAt   time.Time          `dynamodbav:"created_at"`
 	UpdatedAt   time.Time          `dynamodbav:"updated_at"`
 	TTL         int64              `dynamodbav:"ttl,omitempty"`
