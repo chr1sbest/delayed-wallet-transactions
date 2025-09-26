@@ -17,6 +17,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 	"github.com/swaggest/swgui/v5emb"
+	"github.com/aws/aws-lambda-go/lambda"
+	chiadapter "github.com/awslabs/aws-lambda-go-api-proxy/chi"
 )
 
 func main() {
@@ -71,11 +73,17 @@ func main() {
 		_, _ = w.Write(spec)
 	})
 
-	// Start the server.
-	log.Println("Server starting on port 8080...")
-	log.Println("API documentation available at http://localhost:8080/docs")
-	if err := http.ListenAndServe(":8080", chiRouter); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// If we're running in a Lambda environment, use the chiadapter.
+	if os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != "" {
+		chiLambda := chiadapter.New(chiRouter)
+		lambda.Start(chiLambda.ProxyWithContext)
+	} else {
+		// Otherwise, start a local HTTP server.
+		log.Println("Server starting on port 8080...")
+		log.Println("API documentation available at http://localhost:8080/docs")
+		if err := http.ListenAndServe(":8080", chiRouter); err != nil {
+			log.Fatalf("Failed to start server: %v", err)
+		}
 	}
 }
 

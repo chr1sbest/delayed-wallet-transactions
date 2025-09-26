@@ -115,3 +115,74 @@ Outputs:
   TransactionQueueArn:
     Description: "The ARN of the SQS transaction queue"
     Value: !GetAtt TransactionQueue.Arn
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: cmd/app/
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Events:
+        ApiEvents:
+          Type: HttpApi
+      Environment:
+        Variables:
+          DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
+          DYNAMODB_WALLETS_TABLE_NAME: !Ref WalletsTable
+          DYNAMODB_LEDGER_TABLE_NAME: !Ref LedgerTable
+          SQS_QUEUE_URL: !Ref TransactionQueue
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TransactionsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WalletsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LedgerTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt TransactionQueue.QueueName
+
+  ReconciliationLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: cmd/reconciliation_lambda/
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Events:
+        Scheduler:
+          Type: Schedule
+          Properties:
+            Schedule: "rate(5 minutes)"
+      Environment:
+        Variables:
+          DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
+          SQS_QUEUE_URL: !Ref TransactionQueue
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref TransactionsTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt TransactionQueue.QueueName
+
+  SettlementLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: cmd/settlement_lambda/
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TransactionQueue.Arn
+            BatchSize: 1
+      Environment:
+        Variables:
+          DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
+          DYNAMODB_WALLETS_TABLE_NAME: !Ref WalletsTable
+          DYNAMODB_LEDGER_TABLE_NAME: !Ref LedgerTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TransactionsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WalletsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LedgerTable

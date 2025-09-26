@@ -43,5 +43,3 @@ type Storage interface {
 	// ListLedgerEntries retrieves the most recent ledger entries.
 	ListLedgerEntries(ctx context.Context, limit int32) ([]models.LedgerEntry, error)
 }
-
-
