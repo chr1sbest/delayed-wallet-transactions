@@ -28,9 +28,18 @@ type Storage interface {
 	// SettleTransaction performs the final atomic settlement of a transaction.
 	SettleTransaction(ctx context.Context, tx *models.Transaction) error
 
+	// CancelTransaction cancels a transaction if it's in a cancellable state.
+	CancelTransaction(ctx context.Context, txID openapi_types.UUID) error
+
 	// GetStuckTransactions retrieves transactions that are in a 'RESERVED' state for longer than the specified duration.
 	GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]models.Transaction, error)
 
 	// ListWallets retrieves all wallets from the storage.
 	ListWallets(ctx context.Context) ([]models.Wallet, error)
+
+	// ListTransactionsByUserID retrieves all transactions for a specific user.
+	ListTransactionsByUserID(ctx context.Context, userID string) ([]models.Transaction, error)
+
+	// ListLedgerEntries retrieves the most recent ledger entries.
+	ListLedgerEntries(ctx context.Context, limit int32) ([]models.LedgerEntry, error)
 }

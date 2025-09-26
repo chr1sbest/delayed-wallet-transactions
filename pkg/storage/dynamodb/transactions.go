@@ -1,8 +1,7 @@
-package storage
+package dynamodb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -13,39 +12,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/chris/delayed-wallet-transactions/pkg/mapping"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
-	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// DynamoDBStore implements the Storage interface using AWS DynamoDB.
-type DynamoDBStore struct {
-	Client                *dynamodb.Client
-	Scheduler             scheduler.Scheduler
-	TransactionsTableName string
-	WalletsTableName      string
-	LedgerTableName       string
-}
-
-// NewDynamoDBStore creates a new DynamoDBStore.
-func NewDynamoDBStore(client *dynamodb.Client, scheduler scheduler.Scheduler, transactionsTable, walletsTable, ledgerTable string) *DynamoDBStore {
-	return &DynamoDBStore{
-		Client:                client,
-		Scheduler:             scheduler,
-		TransactionsTableName: transactionsTable,
-		WalletsTableName:      walletsTable,
-		LedgerTableName:       ledgerTable,
-	}
-}
-
-// Make sure we conform to the interface
-var _ Storage = (*DynamoDBStore)(nil)
-
-// ErrInsufficientFunds is returned when a wallet has an insufficient balance for a transaction.
-var ErrInsufficientFunds = errors.New("insufficient funds")
+const (
+	stuckTransactionGSI = "status-created_at-index"
+	fromUserIDIndex     = "from_user_id-index"
+)
 
 // CreateTransaction atomically reserves funds from the sender's wallet and creates a new transaction record.
-func (s *DynamoDBStore) CreateTransaction(ctx context.Context, tx *models.Transaction) (*models.Wallet, error) {
+func (s *Store) CreateTransaction(ctx context.Context, tx *models.Transaction) (*models.Wallet, error) {
 	// 1. Get the current state of the sender's wallet.
 	senderWallet, err := s.GetWallet(ctx, tx.FromUserId)
 	if err != nil {
@@ -106,24 +83,11 @@ func (s *DynamoDBStore) CreateTransaction(ctx context.Context, tx *models.Transa
 	// 5. Execute the transaction.
 	_, err = s.Client.TransactWriteItems(ctx, input)
 	if err != nil {
-		// Check for specific transaction cancellation reasons.
-		var txc *types.TransactionCanceledException
-		if errors.As(err, &txc) {
-			for _, reason := range txc.CancellationReasons {
-				// This is a simplified check. A more robust implementation would inspect the reason message or the item index
-				// to differentiate between insufficient funds and a version mismatch.
-				if *reason.Code == "ConditionalCheckFailed" {
-					return nil, ErrInsufficientFunds
-				}
-			}
-		}
 		return nil, fmt.Errorf("failed to execute transaction: %w", err)
 	}
 
 	// 6. If the database transaction was successful, enqueue it for processing.
 	if s.Scheduler != nil {
-		// We need to map the domain model back to the API model for the scheduler.
-		// In a real system, the scheduler might also work with domain models.
 		if err := s.Scheduler.ScheduleTransaction(ctx, mapping.ToApiTransaction(tx)); err != nil {
 			log.Printf("CRITICAL: transaction %s created but failed to enqueue: %v", tx.Id, err)
 		}
@@ -132,17 +96,15 @@ func (s *DynamoDBStore) CreateTransaction(ctx context.Context, tx *models.Transa
 	// 7. Get the updated wallet to return to the user.
 	updatedWallet, err := s.GetWallet(ctx, tx.FromUserId)
 	if err != nil {
-		// The transaction succeeded, but we failed to get the updated wallet.
-		// Log this as a non-critical error and return success without the wallet.
 		log.Printf("warning: transaction %s created but failed to retrieve updated wallet: %v", tx.Id, err)
-		return nil, nil // Or return a partially successful state
+		return nil, nil
 	}
 
 	return updatedWallet, nil
 }
 
 // GetTransaction retrieves a transaction from DynamoDB by its ID.
-func (s *DynamoDBStore) GetTransaction(ctx context.Context, txID openapi_types.UUID) (*models.Transaction, error) {
+func (s *Store) GetTransaction(ctx context.Context, txID openapi_types.UUID) (*models.Transaction, error) {
 	key, err := attributevalue.MarshalMap(map[string]string{"id": txID.String()})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal transaction ID: %w", err)
@@ -170,95 +132,80 @@ func (s *DynamoDBStore) GetTransaction(ctx context.Context, txID openapi_types.U
 	return &tx, nil
 }
 
-// CreateWallet creates a new wallet record in DynamoDB.
-func (s *DynamoDBStore) CreateWallet(ctx context.Context, wallet *models.Wallet) (*models.Wallet, error) {
-	wallet.TTL = time.Now().Add(24 * time.Hour).Unix()
-	// Marshal the wallet object for the Put operation.
-	walletAV, err := attributevalue.MarshalMap(wallet)
+func (s *Store) CancelTransaction(ctx context.Context, txID openapi_types.UUID) error {
+	tx, err := s.GetTransaction(ctx, txID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal wallet: %w", err)
+		return fmt.Errorf("failed to get transaction for cancellation: %w", err)
 	}
 
-	// Construct the PutItem input.
-	input := &dynamodb.PutItemInput{
-		TableName:           aws.String(s.WalletsTableName),
-		Item:                walletAV,
-		ConditionExpression: aws.String("attribute_not_exists(user_id)"), // Prevent overwriting existing wallets.
+	if tx.Status != models.RESERVED {
+		return ErrTransactionNotCancellable
 	}
 
-	// Execute the PutItem operation.
-	_, err = s.Client.PutItem(ctx, input)
+	senderWallet, err := s.GetWallet(ctx, tx.FromUserId)
 	if err != nil {
-		var condCheckFailed *types.ConditionalCheckFailedException
-		if errors.As(err, &condCheckFailed) {
-			return nil, fmt.Errorf("wallet for user ID %s already exists", wallet.UserId)
-		}
-		return nil, fmt.Errorf("failed to create wallet in DynamoDB: %w", err)
+		return fmt.Errorf("failed to get sender's wallet for cancellation: %w", err)
 	}
 
-	// Return the wallet object as it was successfully created.
-	return wallet, nil
-}
-
-// DeleteWallet deletes a wallet record from DynamoDB.
-func (s *DynamoDBStore) DeleteWallet(ctx context.Context, userID string) error {
-	// Marshal the key for the DeleteItem operation.
-	key, err := attributevalue.MarshalMap(map[string]string{"user_id": userID})
+	now := time.Now()
+	amountAV, err := attributevalue.Marshal(tx.Amount)
 	if err != nil {
-		return fmt.Errorf("failed to marshal wallet user ID for deletion: %w", err)
+		return fmt.Errorf("failed to marshal amount for cancellation: %w", err)
 	}
 
-	// Construct the DeleteItem input.
-	input := &dynamodb.DeleteItemInput{
-		TableName:           aws.String(s.WalletsTableName),
-		Key:                 key,
-		ConditionExpression: aws.String("attribute_exists(user_id)"), // Ensure the wallet exists before deleting.
-	}
-
-	// Execute the DeleteItem operation.
-	_, err = s.Client.DeleteItem(ctx, input)
+	cancelledStatusAV, err := attributevalue.Marshal(models.CANCELLED)
 	if err != nil {
-		var condCheckFailed *types.ConditionalCheckFailedException
-		if errors.As(err, &condCheckFailed) {
-			return fmt.Errorf("wallet for user ID %s not found", userID)
-		}
-		return fmt.Errorf("failed to delete wallet from DynamoDB: %w", err)
+		return fmt.Errorf("failed to marshal cancelled status: %w", err)
+	}
+	nowAV, err := attributevalue.Marshal(now)
+	if err != nil {
+		return fmt.Errorf("failed to marshal timestamp for cancellation: %w", err)
+	}
+
+	input := &dynamodb.TransactWriteItemsInput{
+		TransactItems: []types.TransactWriteItem{
+			{
+				Update: &types.Update{
+					TableName: aws.String(s.WalletsTableName),
+					Key:       map[string]types.AttributeValue{"user_id": &types.AttributeValueMemberS{Value: tx.FromUserId}},
+					UpdateExpression:    aws.String("SET balance = balance + :amount, reserved = reserved - :amount, version = version + :inc"),
+					ConditionExpression: aws.String("version = :version"),
+					ExpressionAttributeValues: map[string]types.AttributeValue{
+						":amount":   amountAV,
+						":version":  &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", senderWallet.Version)},
+						":inc":      &types.AttributeValueMemberN{Value: "1"},
+					},
+				},
+			},
+			{
+				Update: &types.Update{
+					TableName: aws.String(s.TransactionsTableName),
+					Key:       map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: tx.Id.String()}},
+					UpdateExpression:    aws.String("SET #status = :cancelled_status, updated_at = :now"),
+					ConditionExpression: aws.String("#status = :reserved_status"),
+					ExpressionAttributeNames: map[string]string{
+						"#status": "status",
+					},
+					ExpressionAttributeValues: map[string]types.AttributeValue{
+						":cancelled_status": cancelledStatusAV,
+						":reserved_status":  &types.AttributeValueMemberS{Value: string(models.RESERVED)},
+						":now":              nowAV,
+					},
+				},
+			},
+		},
+	}
+
+	_, err = s.Client.TransactWriteItems(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to execute cancellation transaction: %w", err)
 	}
 
 	return nil
 }
 
-// GetWallet retrieves a user's wallet from DynamoDB by their user ID.
-func (s *DynamoDBStore) GetWallet(ctx context.Context, userID string) (*models.Wallet, error) {
-	key, err := attributevalue.MarshalMap(map[string]string{"user_id": userID})
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal wallet user ID: %w", err)
-	}
-
-	input := &dynamodb.GetItemInput{
-		TableName: aws.String(s.WalletsTableName),
-		Key:       key,
-	}
-
-	result, err := s.Client.GetItem(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get wallet from DynamoDB: %w", err)
-	}
-
-	if result.Item == nil {
-		return nil, fmt.Errorf("wallet for user ID %s not found", userID)
-	}
-
-	var wallet models.Wallet
-	if err := attributevalue.UnmarshalMap(result.Item, &wallet); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal wallet: %w", err)
-	}
-
-	return &wallet, nil
-}
-
 // SettleTransaction performs the final atomic settlement of a transaction.
-func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *models.Transaction) error {
+func (s *Store) SettleTransaction(ctx context.Context, tx *models.Transaction) error {
 	// 1. Get the current state of both wallets for optimistic locking.
 	senderWallet, err := s.GetWallet(ctx, tx.FromUserId)
 	if err != nil {
@@ -284,6 +231,7 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *models.Transa
 		Debit:         tx.Amount,
 		Description:   fmt.Sprintf("Settlement for transaction %s", tx.Id.String()),
 		Timestamp:     now,
+		GSI1PK:        "LEDGER_ENTRIES",
 	}
 	creditEntry := models.LedgerEntry{
 		TransactionID: tx.Id.String(),
@@ -292,6 +240,7 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *models.Transa
 		Credit:        tx.Amount,
 		Description:   fmt.Sprintf("Settlement for transaction %s", tx.Id.String()),
 		Timestamp:     now,
+		GSI1PK:        "LEDGER_ENTRIES",
 	}
 	debitAV, err := attributevalue.MarshalMap(debitEntry)
 	if err != nil {
@@ -395,9 +344,7 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *models.Transa
 	return nil
 }
 
-const stuckTransactionGSI = "status-created_at-index"
-
-func (s *DynamoDBStore) GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]models.Transaction, error) {
+func (s *Store) GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]models.Transaction, error) {
 	// Calculate the cutoff time.
 	cutoffTime := time.Now().Add(-maxAge)
 	cutoffTimeStr, err := cutoffTime.MarshalText()
@@ -435,24 +382,56 @@ func (s *DynamoDBStore) GetStuckTransactions(ctx context.Context, maxAge time.Du
 	return transactions, nil
 }
 
-// ListWallets retrieves all wallets from DynamoDB.
-func (s *DynamoDBStore) ListWallets(ctx context.Context) ([]models.Wallet, error) {
-	// Prepare the Scan input.
-	input := &dynamodb.ScanInput{
-		TableName: aws.String(s.WalletsTableName),
+// ListTransactionsByUserID retrieves all transactions for a specific user.
+const ledgerGSI = "gsi1pk-timestamp-index"
+
+func (s *Store) ListLedgerEntries(ctx context.Context, limit int32) ([]models.LedgerEntry, error) {
+	input := &dynamodb.QueryInput{
+		TableName:              aws.String(s.LedgerTableName),
+		IndexName:              aws.String(ledgerGSI),
+		KeyConditionExpression: aws.String("gsi1pk = :pk"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":pk": &types.AttributeValueMemberS{Value: "LEDGER_ENTRIES"},
+		},
+		ScanIndexForward: aws.Bool(false), // Sort by timestamp in descending order
+		Limit:            &limit,
 	}
 
-	// Execute the Scan operation.
-	result, err := s.Client.Scan(ctx, input)
+	result, err := s.Client.Query(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan wallets table: %w", err)
+		return nil, fmt.Errorf("failed to query for ledger entries: %w", err)
+	}
+
+	var entries []models.LedgerEntry
+	if err := attributevalue.UnmarshalListOfMaps(result.Items, &entries); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ledger entries: %w", err)
+	}
+
+	return entries, nil
+}
+
+func (s *Store) ListTransactionsByUserID(ctx context.Context, userID string) ([]models.Transaction, error) {
+	// Prepare the query input.
+	input := &dynamodb.QueryInput{
+		TableName:              aws.String(s.TransactionsTableName),
+		IndexName:              aws.String(fromUserIDIndex),
+		KeyConditionExpression: aws.String("from_user_id = :userID"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":userID": &types.AttributeValueMemberS{Value: userID},
+		},
+	}
+
+	// Execute the query.
+	result, err := s.Client.Query(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query for transactions by user ID: %w", err)
 	}
 
 	// Unmarshal the results.
-	var wallets []models.Wallet
-	if err := attributevalue.UnmarshalListOfMaps(result.Items, &wallets); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal wallets: %w", err)
+	var transactions []models.Transaction
+	if err := attributevalue.UnmarshalListOfMaps(result.Items, &transactions); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal transactions: %w", err)
 	}
 
-	return wallets, nil
+	return transactions, nil
 }

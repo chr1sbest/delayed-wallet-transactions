@@ -12,7 +12,7 @@ import (
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/handlers"
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
-	"github.com/chris/delayed-wallet-transactions/pkg/storage"
+	dydbstore "github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
@@ -44,7 +44,7 @@ func main() {
 
 	// Initialize components.
 	sqsScheduler := scheduler.NewSQSScheduler(sqsClient, sqsQueueURL)
-	store := storage.NewDynamoDBStore(dbClient, sqsScheduler, transactionsTable, walletsTable, ledgerTable)
+	store := dydbstore.New(dbClient, sqsScheduler, transactionsTable, walletsTable, ledgerTable)
 	apiHandler := handlers.NewApiHandler(store)
 
 	// Use oapi-codegen's generated handler to mount the API routes.

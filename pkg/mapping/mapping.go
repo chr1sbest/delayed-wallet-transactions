@@ -50,6 +50,18 @@ func ToDomainNewWallet(newWallet *api.NewWallet) *models.Wallet {
 }
 
 // ToDomainTransaction converts an API Transaction model to a domain Transaction model.
+func ToApiLedgerEntry(entry *models.LedgerEntry) *api.LedgerEntry {
+	return &api.LedgerEntry{
+		TransactionId: entry.TransactionID,
+		EntryId:       entry.EntryID,
+		AccountId:     entry.AccountID,
+		Debit:         &entry.Debit,
+		Credit:        &entry.Credit,
+		Description:   entry.Description,
+		Timestamp:     entry.Timestamp,
+	}
+}
+
 func ToDomainTransaction(tx *api.Transaction) *models.Transaction {
 	return &models.Transaction{
 		Id:          tx.Id,

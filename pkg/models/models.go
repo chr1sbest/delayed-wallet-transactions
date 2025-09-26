@@ -14,6 +14,7 @@ const (
 	APPROVED  TransactionStatus = "APPROVED"
 	COMPLETED TransactionStatus = "COMPLETED"
 	REJECTED  TransactionStatus = "REJECTED"
+	CANCELLED TransactionStatus = "CANCELLED"
 )
 
 // Transaction represents the internal domain model for a transaction.
@@ -48,4 +49,5 @@ type LedgerEntry struct {
 	Credit        int64     `dynamodbav:"credit,omitempty"`
 	Description   string    `dynamodbav:"description"`
 	Timestamp     time.Time `dynamodbav:"timestamp"`
+	GSI1PK        string    `dynamodbav:"gsi1pk"`
 }

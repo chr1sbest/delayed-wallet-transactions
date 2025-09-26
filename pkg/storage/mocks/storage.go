@@ -18,6 +18,24 @@ type Storage struct {
 	mock.Mock
 }
 
+// CancelTransaction provides a mock function with given fields: ctx, txID
+func (_m *Storage) CancelTransaction(ctx context.Context, txID uuid.UUID) error {
+	ret := _m.Called(ctx, txID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CancelTransaction")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // CreateTransaction provides a mock function with given fields: ctx, newTx
 func (_m *Storage) CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Wallet, error) {
 	ret := _m.Called(ctx, newTx)
@@ -174,6 +192,66 @@ func (_m *Storage) GetWallet(ctx context.Context, userID string) (*models.Wallet
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Wallet)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListLedgerEntries provides a mock function with given fields: ctx, limit
+func (_m *Storage) ListLedgerEntries(ctx context.Context, limit int32) ([]models.LedgerEntry, error) {
+	ret := _m.Called(ctx, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListLedgerEntries")
+	}
+
+	var r0 []models.LedgerEntry
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) ([]models.LedgerEntry, error)); ok {
+		return rf(ctx, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) []models.LedgerEntry); ok {
+		r0 = rf(ctx, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.LedgerEntry)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListTransactionsByUserID provides a mock function with given fields: ctx, userID
+func (_m *Storage) ListTransactionsByUserID(ctx context.Context, userID string) ([]models.Transaction, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListTransactionsByUserID")
+	}
+
+	var r0 []models.Transaction
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]models.Transaction, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []models.Transaction); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Transaction)
 		}
 	}
 

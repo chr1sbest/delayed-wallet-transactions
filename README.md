@@ -57,12 +57,23 @@ Ensuring financial correctness in a distributed system is the primary challenge.
       - `DYNAMODB_LEDGER_TABLE_NAME`
       - `SQS_QUEUE_URL`
 
-3.  **Set up AWS Resources:**
-    - Create the three DynamoDB tables with the specified primary keys:
-      - **Transactions Table**: Primary Key `id` (String)
-      - **Wallets Table**: Primary Key `user_id` (String)
-      - **Ledger Table**: Primary Key `TransactionID` (String), Sort Key `EntryID` (String)
-    - Create the SQS queue.
+3.  **Deploy AWS Resources with SAM:**
+
+    This project uses the AWS Serverless Application Model (SAM) to define and deploy the required AWS resources. The `template.yaml` file in the root of the project contains the definitions for the DynamoDB tables and the SQS queue.
+
+    To deploy the resources, run the following commands from the project root:
+
+    First, build the SAM application:
+    ```sh
+    sam build
+    ```
+
+    Then, deploy the resources using the guided deployment process. This will prompt you for configuration details, such as the AWS region and a stack name.
+    ```sh
+    sam deploy --guided
+    ```
+
+    After deployment, the SAM CLI will output the names and ARNs of the created resources. You will need to use these outputs to update your `.env` file.
 
 4.  **Run the application:**
     ```sh

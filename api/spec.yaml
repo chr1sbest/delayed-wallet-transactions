@@ -95,17 +95,60 @@ paths:
         '404':
           description: Wallet not found
 
-  /transactions/{transactionId}:
+  /wallets/{userId}/transactions:
     get:
-      summary: Get transaction details
-      operationId: getTransactionById
+      summary: List all transactions for a user
+      operationId: listTransactionsByUserId
       parameters:
-        - name: transactionId
+        - name: userId
           in: path
           required: true
           schema:
             type: string
-            format: uuid
+      responses:
+        '200':
+          description: A list of transactions for the user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+        '404':
+          description: User not found
+
+  /ledger:
+    get:
+      summary: List recent ledger entries
+      operationId: listLedgerEntries
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: A list of recent ledger entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LedgerEntry'
+
+  /transactions/{transactionId}:
+    parameters:
+      - name: transactionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get transaction details
+      operationId: getTransactionById
       responses:
         '200':
           description: Transaction details
@@ -115,9 +158,46 @@ paths:
                 $ref: '#/components/schemas/Transaction'
         '404':
           description: Transaction not found
+    post:
+      summary: Cancel a transaction
+      operationId: cancelTransactionById
+      responses:
+        '204':
+          description: Transaction cancelled successfully
+        '404':
+          description: Transaction not found
+        '409':
+          description: Transaction not in a cancellable state
 
 components:
   schemas:
+    LedgerEntry:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+        entry_id:
+          type: string
+        account_id:
+          type: string
+        debit:
+          type: integer
+          format: int64
+        credit:
+          type: integer
+          format: int64
+        description:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - transaction_id
+        - entry_id
+        - account_id
+        - description
+        - timestamp
+
     NewWallet:
       type: object
       properties:

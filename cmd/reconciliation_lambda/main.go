@@ -13,6 +13,7 @@ import (
 	"github.com/chris/delayed-wallet-transactions/pkg/mapping"
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage"
+	dydbstore "github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb"
 	"github.com/joho/godotenv"
 )
 
@@ -44,7 +45,7 @@ func init() {
 	walletsTable := os.Getenv("DYNAMODB_WALLETS_TABLE_NAME")
 	ledgerTable := os.Getenv("DYNAMODB_LEDGER_TABLE_NAME")
 
-	store = storage.NewDynamoDBStore(dbClient, sqsScheduler, transactionsTable, walletsTable, ledgerTable)
+	store = dydbstore.New(dbClient, sqsScheduler, transactionsTable, walletsTable, ledgerTable)
 }
 
 // HandleRequest is triggered by an EventBridge Schedule.

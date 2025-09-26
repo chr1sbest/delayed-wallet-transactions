@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage"
+	dydbstore "github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb"
 	"github.com/joho/godotenv"
 )
 
@@ -40,7 +41,7 @@ func init() {
 	}
 
 	// The settlement lambda doesn't need a scheduler, so we pass nil.
-	store = storage.NewDynamoDBStore(dbClient, nil, transactionsTable, walletsTable, ledgerTable)
+	store = dydbstore.New(dbClient, nil, transactionsTable, walletsTable, ledgerTable)
 }
 
 // HandleRequest processes SQS messages and settles the transactions.
