@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	chiadapter "github.com/awslabs/aws-lambda-go-api-proxy/chi"
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/handlers"
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
@@ -17,8 +18,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 	"github.com/swaggest/swgui/v5emb"
+
 	"github.com/aws/aws-lambda-go/lambda"
-	chiadapter "github.com/awslabs/aws-lambda-go-api-proxy/chi"
 )
 
 func main() {
@@ -57,20 +58,27 @@ func main() {
 	chiRouter.Use(middleware.Recoverer)
 	chiRouter.Mount("/", apiRouter)
 
-	// --- Add Swagger UI endpoint --- //
-	spec, err := os.ReadFile("api/spec.yaml")
-	if err != nil {
-		log.Fatalf("Failed to read OpenAPI spec: %v", err)
-	}
+	// --- Add Swagger UI endpoint for local development --- //
+	// This will only work locally and will not be available in the deployed Lambda
+	// because the spec file is not included in the build artifact.
+	chiRouter.Get("/docs/*", func(w http.ResponseWriter, r *http.Request) {
+		// Read the spec file on every request to ensure it's up to date.
+		spec, err := os.ReadFile("api/spec.yaml")
+		if err != nil {
+			http.Error(w, "Failed to read OpenAPI spec", http.StatusInternalServerError)
+			return
+		}
 
-	// Create the Swagger UI handler.
-	swguiHandler := v5emb.New("Delayed Wallet API", "/docs/openapi.yaml", "/docs")
-	chiRouter.Mount("/docs", swguiHandler)
+		// Create a new Swagger UI handler on each request.
+		swguiHandler := v5emb.New("Delayed Wallet API", "/docs/openapi.yaml", "/docs")
 
-	// Add an endpoint to serve the raw spec file.
-	chiRouter.Get("/docs/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/x-yaml")
-		_, _ = w.Write(spec)
+		// Serve the raw spec file.
+		chiRouter.Get("/docs/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/x-yaml")
+			_, _ = w.Write(spec)
+		})
+
+		swguiHandler.ServeHTTP(w, r)
 	})
 
 	// If we're running in a Lambda environment, use the chiadapter.
@@ -80,7 +88,6 @@ func main() {
 	} else {
 		// Otherwise, start a local HTTP server.
 		log.Println("Server starting on port 8080...")
-		log.Println("API documentation available at http://localhost:8080/docs")
 		if err := http.ListenAndServe(":8080", chiRouter); err != nil {
 			log.Fatalf("Failed to start server: %v", err)
 		}

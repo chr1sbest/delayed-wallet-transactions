@@ -1,7 +1,10 @@
 # This file uses go run to execute mockery, which ensures that the version
 # specified in tools.go and go.mod is used, providing reproducible builds.
 
-.PHONY: mocks generate
+.PHONY: mocks generate build local deploy-infra-dev
+
+# All directories under /cmd
+LAMBDA_DIRS := $(shell find cmd -mindepth 1 -maxdepth 1 -type d)
 
 mocks:
 	@echo "Generating mocks..."
@@ -9,6 +12,25 @@ mocks:
 	@go run github.com/vektra/mockery/v2 --name=CronScheduler --dir=./pkg/scheduler --output=./pkg/scheduler/mocks --outpkg=mocks --case=underscore
 	@go run github.com/vektra/mockery/v2 --name=DynamoDBAPI --dir=./pkg/storage/dynamodb --output=./pkg/storage/dynamodb/mocks --outpkg=mocks --case=underscore
 	@echo "Mocks generated successfully."
+
+############################################
+### Deploying to dev environment via SAM ###
+############################################
+
+build:
+	@echo "Building SAM application..."
+	sam build
+
+local: build
+	@echo "Starting reflex for watching Go files..."
+	@(export AWS_PROFILE=default && reflex -r "\.go$" -R "\.aws-sam" -- sh -c "sam build") &
+	@echo "Starting local API using AWS_PROFILE=default..."
+	@(export AWS_PROFILE=default && sam local start-api)
+
+# Deploy new infrastructure with SAM
+deploy-infra-dev: build
+	@echo "Deploying infrastructure to 'dev' environment..."
+	sam deploy --stack-name delayed-wallet-dev --capabilities CAPABILITY_NAMED_IAM --parameter-overrides Environment=dev --resolve-s3 --no-confirm-changeset
 
 .PHONY: generate
 generate:
@@ -19,6 +41,9 @@ generate:
 .PHONY: help
 help:
 	@echo "Available commands:"
-	@echo "  make mocks    - Generate mocks for interfaces"
-	@echo "  make generate - Generate server code from OpenAPI spec"
-	@echo "  make help     - Show this help message"
+	@echo "  make mocks           - Generate mocks for interfaces"
+	@echo "  make generate        - Generate server code from OpenAPI spec"
+	@echo "  make build           - Build the SAM application"
+	@echo "  make local           - Run the API locally with hot-reloading"
+	@echo "  make deploy-infra-dev - Deploy the stack to the 'dev' environment"
+	@echo "  make help            - Show this help message"
