@@ -48,7 +48,10 @@ type Transaction struct {
 	ScheduledAt time.Time          `json:"scheduled_at"`
 	Status      TransactionStatus  `json:"status"`
 	ToUserId    string             `json:"to_user_id"`
-	UpdatedAt   time.Time          `json:"updated_at"`
+
+	// Ttl A Unix timestamp to enable TTL for automatic record deletion.
+	Ttl       *int64    `json:"ttl,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // TransactionStatus defines model for Transaction.Status.
@@ -56,9 +59,12 @@ type TransactionStatus string
 
 // Wallet defines model for Wallet.
 type Wallet struct {
-	Balance  int64  `json:"balance"`
-	Reserved int64  `json:"reserved"`
-	UserId   string `json:"user_id"`
+	Balance  int64 `json:"balance"`
+	Reserved int64 `json:"reserved"`
+
+	// Ttl A Unix timestamp to enable TTL for automatic record deletion.
+	Ttl    *int64 `json:"ttl,omitempty"`
+	UserId string `json:"user_id"`
 
 	// Version A version number for optimistic locking.
 	Version int64 `json:"version"`
@@ -78,6 +84,9 @@ type ServerInterface interface {
 	// Get transaction details
 	// (GET /transactions/{transactionId})
 	GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID)
+	// List all wallets
+	// (GET /wallets)
+	ListWallets(w http.ResponseWriter, r *http.Request)
 	// Create a new wallet
 	// (POST /wallets)
 	CreateWallet(w http.ResponseWriter, r *http.Request)
@@ -102,6 +111,12 @@ func (_ Unimplemented) ScheduleTransaction(w http.ResponseWriter, r *http.Reques
 // Get transaction details
 // (GET /transactions/{transactionId})
 func (_ Unimplemented) GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List all wallets
+// (GET /wallets)
+func (_ Unimplemented) ListWallets(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -162,6 +177,20 @@ func (siw *ServerInterfaceWrapper) GetTransactionById(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetTransactionById(w, r, transactionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListWallets operation middleware
+func (siw *ServerInterfaceWrapper) ListWallets(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListWallets(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -353,6 +382,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/transactions/{transactionId}", wrapper.GetTransactionById)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/wallets", wrapper.ListWallets)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/wallets", wrapper.CreateWallet)

@@ -17,15 +17,29 @@ paths:
               $ref: '#/components/schemas/NewTransaction'
       responses:
         '201':
-          description: Transaction successfully scheduled
+          description: Transaction successfully scheduled and funds reserved
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Transaction'
+                $ref: '#/components/schemas/Wallet'
         '400':
           description: Invalid request
+        '422':
+          description: Unprocessable Entity (e.g., insufficient funds)
 
   /wallets:
+    get:
+      summary: List all wallets
+      operationId: listWallets
+      responses:
+        '200':
+          description: A list of wallets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wallet'
     post:
       summary: Create a new wallet
       operationId: createWallet
@@ -158,6 +172,10 @@ components:
         updated_at:
           type: string
           format: date-time
+        ttl:
+          type: integer
+          format: int64
+          description: A Unix timestamp to enable TTL for automatic record deletion.
       required:
         - id
         - from_user_id
@@ -183,6 +201,10 @@ components:
           type: integer
           format: int64
           description: A version number for optimistic locking.
+        ttl:
+          type: integer
+          format: int64
+          description: A Unix timestamp to enable TTL for automatic record deletion.
       required:
         - user_id
         - balance

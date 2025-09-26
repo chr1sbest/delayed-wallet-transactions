@@ -10,8 +10,8 @@ import (
 
 // Storage defines the interface for interacting with the transaction data layer.
 type Storage interface {
-	// CreateTransaction creates a new transaction and stores it.
-	CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Transaction, error)
+	// CreateTransaction creates a new transaction and returns the updated sender's wallet.
+	CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Wallet, error)
 
 	// GetTransaction retrieves a transaction by its ID.
 	GetTransaction(ctx context.Context, txID openapi_types.UUID) (*models.Transaction, error)
@@ -30,4 +30,7 @@ type Storage interface {
 
 	// GetStuckTransactions retrieves transactions that are in a 'RESERVED' state for longer than the specified duration.
 	GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]models.Transaction, error)
+
+	// ListWallets retrieves all wallets from the storage.
+	ListWallets(ctx context.Context) ([]models.Wallet, error)
 }

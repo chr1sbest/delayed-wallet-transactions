@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -39,11 +40,10 @@ func (h *ApiHandler) ScheduleTransaction(w http.ResponseWriter, r *http.Request)
 	domainTx := mapping.ToDomainNewTransaction(&newTx)
 
 	// Call the storage layer to create the transaction.
-	createdTx, err := h.Store.CreateTransaction(r.Context(), domainTx)
+	updatedWallet, err := h.Store.CreateTransaction(r.Context(), domainTx)
 	if err != nil {
-		// Check for specific, user-facing errors like conditional check failures.
-		if strings.Contains(err.Error(), "conditional check failed") {
-			http.Error(w, fmt.Sprintf("Failed to schedule transaction: %v", err), http.StatusBadRequest)
+		if errors.Is(err, storage.ErrInsufficientFunds) {
+			http.Error(w, "Insufficient funds", http.StatusUnprocessableEntity)
 		} else {
 			http.Error(w, fmt.Sprintf("Failed to schedule transaction: %v", err), http.StatusInternalServerError)
 		}
@@ -51,10 +51,10 @@ func (h *ApiHandler) ScheduleTransaction(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Map the domain model response back to the API model and respond.
-	apiTx := mapping.ToApiTransaction(createdTx)
+	apiWallet := mapping.ToApiWallet(updatedWallet)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(apiTx); err != nil {
+	if err := json.NewEncoder(w).Encode(apiWallet); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to write response: %v", err), http.StatusInternalServerError)
 	}
 }
@@ -122,6 +122,29 @@ func (h *ApiHandler) DeleteWallet(w http.ResponseWriter, r *http.Request, userId
 
 	// Respond with a success status.
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ListWallets handles the logic for retrieving all wallets.
+func (h *ApiHandler) ListWallets(w http.ResponseWriter, r *http.Request) {
+	// Call the storage layer to get all wallets.
+	domainWallets, err := h.Store.ListWallets(r.Context())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to retrieve wallets: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Map the domain models to the API models.
+	apiWallets := make([]*api.Wallet, len(domainWallets))
+	for i, wallet := range domainWallets {
+		apiWallets[i] = mapping.ToApiWallet(&wallet)
+	}
+
+	// Respond with the list of wallets.
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(apiWallets); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to write response: %v", err), http.StatusInternalServerError)
+	}
 }
 
 func (h *ApiHandler) GetWalletByUserId(w http.ResponseWriter, r *http.Request, userId string) {

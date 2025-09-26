@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chris/delayed-wallet-transactions/pkg/storage"
+
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage/mocks"
-	"github.com/google/uuid"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -27,24 +27,18 @@ func TestScheduleTransaction(t *testing.T) {
 		Amount:      100,
 		ScheduledAt: time.Now().Add(10 * time.Minute),
 	}
-
-	txID := openapi_types.UUID(uuid.New())
-	// This represents the object that comes back from the database
-	expectedDomainTx := &models.Transaction{
-		Id:          txID,
-		FromUserId:  newApiTx.FromUserId,
-		ToUserId:    newApiTx.ToUserId,
-		Amount:      newApiTx.Amount,
-		Status:      models.RESERVED,
-		ScheduledAt: newApiTx.ScheduledAt,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+	// This represents the wallet object that comes back from the database
+	expectedWallet := &models.Wallet{
+		UserId:   newApiTx.FromUserId,
+		Balance:  900,
+		Reserved: 100,
+		Version:  2,
 	}
 
 	t.Run("Success", func(t *testing.T) {
 		// Arrange
 		mockStorage := new(mocks.Storage)
-		mockStorage.On("CreateTransaction", mock.Anything, mock.Anything).Return(expectedDomainTx, nil)
+		mockStorage.On("CreateTransaction", mock.Anything, mock.Anything).Return(expectedWallet, nil)
 
 		h := NewApiHandler(mockStorage)
 
@@ -58,18 +52,19 @@ func TestScheduleTransaction(t *testing.T) {
 		// Assert
 		assert.Equal(t, http.StatusCreated, rr.Code)
 
-		var returnedTx api.Transaction
-		json.Unmarshal(rr.Body.Bytes(), &returnedTx)
-		assert.Equal(t, expectedDomainTx.Id, returnedTx.Id)
-		assert.Equal(t, expectedDomainTx.Amount, returnedTx.Amount)
+		var returnedWallet api.Wallet
+		json.Unmarshal(rr.Body.Bytes(), &returnedWallet)
+		assert.Equal(t, expectedWallet.UserId, returnedWallet.UserId)
+		assert.Equal(t, expectedWallet.Balance, returnedWallet.Balance)
+		assert.Equal(t, expectedWallet.Reserved, returnedWallet.Reserved)
 
 		mockStorage.AssertExpectations(t)
 	})
 
-	t.Run("Storage Failure - Conditional Check Failed", func(t *testing.T) {
+	t.Run("Insufficient Funds", func(t *testing.T) {
 		// Arrange
 		mockStorage := new(mocks.Storage)
-		mockStorage.On("CreateTransaction", mock.Anything, mock.Anything).Return(nil, errors.New("conditional check failed"))
+		mockStorage.On("CreateTransaction", mock.Anything, mock.Anything).Return(nil, storage.ErrInsufficientFunds)
 
 		h := NewApiHandler(mockStorage)
 
@@ -81,8 +76,8 @@ func TestScheduleTransaction(t *testing.T) {
 		h.ScheduleTransaction(rr, req)
 
 		// Assert
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-		assert.Contains(t, rr.Body.String(), "conditional check failed")
+		assert.Equal(t, http.StatusUnprocessableEntity, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Insufficient funds")
 		mockStorage.AssertExpectations(t)
 	})
 
@@ -100,5 +95,24 @@ func TestScheduleTransaction(t *testing.T) {
 		// Assert
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 		// We don't assert mock expectations because the storage layer should not be called.
+	})
+
+	t.Run("Generic Storage Failure", func(t *testing.T) {
+		// Arrange
+		mockStorage := new(mocks.Storage)
+		mockStorage.On("CreateTransaction", mock.Anything, mock.Anything).Return(nil, errors.New("something went wrong"))
+
+		h := NewApiHandler(mockStorage)
+
+		body, _ := json.Marshal(newApiTx)
+		req := httptest.NewRequest(http.MethodPost, "/transactions", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+
+		// Act
+		h.ScheduleTransaction(rr, req)
+
+		// Assert
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		mockStorage.AssertExpectations(t)
 	})
 }

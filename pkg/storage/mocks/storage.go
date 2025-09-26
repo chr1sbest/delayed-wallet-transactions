@@ -19,23 +19,23 @@ type Storage struct {
 }
 
 // CreateTransaction provides a mock function with given fields: ctx, newTx
-func (_m *Storage) CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Transaction, error) {
+func (_m *Storage) CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Wallet, error) {
 	ret := _m.Called(ctx, newTx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateTransaction")
 	}
 
-	var r0 *models.Transaction
+	var r0 *models.Wallet
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) (*models.Transaction, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) (*models.Wallet, error)); ok {
 		return rf(ctx, newTx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) *models.Transaction); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) *models.Wallet); ok {
 		r0 = rf(ctx, newTx)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Transaction)
+			r0 = ret.Get(0).(*models.Wallet)
 		}
 	}
 
@@ -179,6 +179,36 @@ func (_m *Storage) GetWallet(ctx context.Context, userID string) (*models.Wallet
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListWallets provides a mock function with given fields: ctx
+func (_m *Storage) ListWallets(ctx context.Context) ([]models.Wallet, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListWallets")
+	}
+
+	var r0 []models.Wallet
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]models.Wallet, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []models.Wallet); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Wallet)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}

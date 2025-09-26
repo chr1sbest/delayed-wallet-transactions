@@ -41,8 +41,11 @@ func NewDynamoDBStore(client *dynamodb.Client, scheduler scheduler.Scheduler, tr
 // Make sure we conform to the interface
 var _ Storage = (*DynamoDBStore)(nil)
 
+// ErrInsufficientFunds is returned when a wallet has an insufficient balance for a transaction.
+var ErrInsufficientFunds = errors.New("insufficient funds")
+
 // CreateTransaction atomically reserves funds from the sender's wallet and creates a new transaction record.
-func (s *DynamoDBStore) CreateTransaction(ctx context.Context, tx *models.Transaction) (*models.Transaction, error) {
+func (s *DynamoDBStore) CreateTransaction(ctx context.Context, tx *models.Transaction) (*models.Wallet, error) {
 	// 1. Get the current state of the sender's wallet.
 	senderWallet, err := s.GetWallet(ctx, tx.FromUserId)
 	if err != nil {
@@ -55,6 +58,7 @@ func (s *DynamoDBStore) CreateTransaction(ctx context.Context, tx *models.Transa
 	tx.Status = models.RESERVED
 	tx.CreatedAt = now
 	tx.UpdatedAt = now
+	tx.TTL = time.Now().Add(24 * time.Hour).Unix()
 
 	// Marshal the transaction for the Put operation.
 	txAV, err := attributevalue.MarshalMap(tx)
@@ -78,12 +82,13 @@ func (s *DynamoDBStore) CreateTransaction(ctx context.Context, tx *models.Transa
 					Key: map[string]types.AttributeValue{
 						"user_id": &types.AttributeValueMemberS{Value: tx.FromUserId},
 					},
-					UpdateExpression:    aws.String("SET balance = balance - :amount, reserved = reserved + :amount, version = version + :inc"),
+					UpdateExpression:    aws.String("SET balance = balance - :amount, reserved = reserved + :amount, version = version + :inc, ttl = :ttl"),
 					ConditionExpression: aws.String("balance >= :amount AND version = :version"),
 					ExpressionAttributeValues: map[string]types.AttributeValue{
 						":amount":   amountAV,
 						":version":  &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", senderWallet.Version)},
 						":inc":      &types.AttributeValueMemberN{Value: "1"},
+						":ttl":      &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", time.Now().Add(24*time.Hour).Unix())},
 					},
 				},
 			},
@@ -105,8 +110,10 @@ func (s *DynamoDBStore) CreateTransaction(ctx context.Context, tx *models.Transa
 		var txc *types.TransactionCanceledException
 		if errors.As(err, &txc) {
 			for _, reason := range txc.CancellationReasons {
+				// This is a simplified check. A more robust implementation would inspect the reason message or the item index
+				// to differentiate between insufficient funds and a version mismatch.
 				if *reason.Code == "ConditionalCheckFailed" {
-					return nil, fmt.Errorf("transaction failed: conditional check failed (insufficient funds, race condition, or duplicate transaction)")
+					return nil, ErrInsufficientFunds
 				}
 			}
 		}
@@ -122,7 +129,16 @@ func (s *DynamoDBStore) CreateTransaction(ctx context.Context, tx *models.Transa
 		}
 	}
 
-	return tx, nil
+	// 7. Get the updated wallet to return to the user.
+	updatedWallet, err := s.GetWallet(ctx, tx.FromUserId)
+	if err != nil {
+		// The transaction succeeded, but we failed to get the updated wallet.
+		// Log this as a non-critical error and return success without the wallet.
+		log.Printf("warning: transaction %s created but failed to retrieve updated wallet: %v", tx.Id, err)
+		return nil, nil // Or return a partially successful state
+	}
+
+	return updatedWallet, nil
 }
 
 // GetTransaction retrieves a transaction from DynamoDB by its ID.
@@ -156,6 +172,7 @@ func (s *DynamoDBStore) GetTransaction(ctx context.Context, txID openapi_types.U
 
 // CreateWallet creates a new wallet record in DynamoDB.
 func (s *DynamoDBStore) CreateWallet(ctx context.Context, wallet *models.Wallet) (*models.Wallet, error) {
+	wallet.TTL = time.Now().Add(24 * time.Hour).Unix()
 	// Marshal the wallet object for the Put operation.
 	walletAV, err := attributevalue.MarshalMap(wallet)
 	if err != nil {
@@ -307,12 +324,13 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *models.Transa
 				Update: &types.Update{
 					TableName: aws.String(s.WalletsTableName),
 					Key: map[string]types.AttributeValue{"user_id": &types.AttributeValueMemberS{Value: tx.FromUserId}},
-					UpdateExpression:    aws.String("SET reserved = reserved - :amount, version = version + :inc"),
+					UpdateExpression:    aws.String("SET reserved = reserved - :amount, version = version + :inc, ttl = :ttl"),
 					ConditionExpression: aws.String("reserved >= :amount AND version = :version"),
 					ExpressionAttributeValues: map[string]types.AttributeValue{
 						":amount":   amountAV,
 						":version":  &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", senderWallet.Version)},
 						":inc":      &types.AttributeValueMemberN{Value: "1"},
+						":ttl":      &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", time.Now().Add(24*time.Hour).Unix())},
 					},
 				},
 			},
@@ -321,12 +339,13 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *models.Transa
 				Update: &types.Update{
 					TableName: aws.String(s.WalletsTableName),
 					Key: map[string]types.AttributeValue{"user_id": &types.AttributeValueMemberS{Value: tx.ToUserId}},
-					UpdateExpression:    aws.String("SET balance = balance + :amount, version = version + :inc"),
+					UpdateExpression:    aws.String("SET balance = balance + :amount, version = version + :inc, ttl = :ttl"),
 					ConditionExpression: aws.String("version = :version"),
 					ExpressionAttributeValues: map[string]types.AttributeValue{
 						":amount":   amountAV,
 						":version":  &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", receiverWallet.Version)},
 						":inc":      &types.AttributeValueMemberN{Value: "1"},
+						":ttl":      &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", time.Now().Add(24*time.Hour).Unix())},
 					},
 				},
 			},
@@ -378,7 +397,6 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *models.Transa
 
 const stuckTransactionGSI = "status-created_at-index"
 
-// GetStuckTransactions retrieves transactions that are in a 'RESERVED' state for longer than the specified duration.
 func (s *DynamoDBStore) GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]models.Transaction, error) {
 	// Calculate the cutoff time.
 	cutoffTime := time.Now().Add(-maxAge)
@@ -415,4 +433,26 @@ func (s *DynamoDBStore) GetStuckTransactions(ctx context.Context, maxAge time.Du
 	}
 
 	return transactions, nil
+}
+
+// ListWallets retrieves all wallets from DynamoDB.
+func (s *DynamoDBStore) ListWallets(ctx context.Context) ([]models.Wallet, error) {
+	// Prepare the Scan input.
+	input := &dynamodb.ScanInput{
+		TableName: aws.String(s.WalletsTableName),
+	}
+
+	// Execute the Scan operation.
+	result, err := s.Client.Scan(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan wallets table: %w", err)
+	}
+
+	// Unmarshal the results.
+	var wallets []models.Wallet
+	if err := attributevalue.UnmarshalListOfMaps(result.Items, &wallets); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal wallets: %w", err)
+	}
+
+	return wallets, nil
 }

@@ -27,6 +27,7 @@ type Transaction struct {
 	ScheduledAt time.Time          `dynamodbav:"scheduled_at"`
 	CreatedAt   time.Time          `dynamodbav:"created_at"`
 	UpdatedAt   time.Time          `dynamodbav:"updated_at"`
+	TTL         int64              `dynamodbav:"ttl,omitempty"`
 }
 
 // Wallet represents the internal domain model for a user's wallet.
@@ -35,6 +36,7 @@ type Wallet struct {
 	Balance  int64   `dynamodbav:"balance"`
 	Reserved int64   `dynamodbav:"reserved"`
 	Version  int64   `dynamodbav:"version"`
+	TTL      int64   `dynamodbav:"ttl,omitempty"`
 }
 
 // LedgerEntry represents a single entry in the double-entry ledger.

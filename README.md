@@ -83,13 +83,26 @@ The API is defined using the OpenAPI 3.0 standard in `api/spec.yaml`.
 
 - `POST /transactions`
   - **Description**: Schedules a new delayed transaction. Atomically reserves funds from the sender's wallet and creates a transaction record.
-  - **Request Body**: `NewTransaction` object (`from_user_id`, `to_user_id`, `amount`, `currency`, `scheduled_at`).
+  - **Request Body**: `NewTransaction` object (`from_user_id`, `to_user_id`, `amount`, `scheduled_at`).
   - **Response**: The created `Transaction` object.
 
 - `GET /transactions/{transactionId}`
   - **Description**: Retrieves the details and current status of a specific transaction.
   - **Response**: The `Transaction` object.
 
+- `GET /wallets`
+  - **Description**: Retrieves a list of all wallets.
+  - **Response**: An array of `Wallet` objects.
+
+- `POST /wallets`
+  - **Description**: Creates a new wallet for a user with a default starting balance.
+  - **Request Body**: `NewWallet` object (`user_id`).
+  - **Response**: The created `Wallet` object.
+
 - `GET /wallets/{userId}`
   - **Description**: Retrieves the current state of a user's wallet, including their available balance, reserved funds, and version number.
   - **Response**: The `Wallet` object.
+
+- `DELETE /wallets/{userId}`
+  - **Description**: Deletes a user's wallet. This is a destructive operation.
+  - **Response**: `204 No Content` on success.
