@@ -35,6 +35,12 @@ type NewTransaction struct {
 	ToUserId    string    `json:"to_user_id"`
 }
 
+// NewWallet defines model for NewWallet.
+type NewWallet struct {
+	Currency string `json:"currency"`
+	UserId   string `json:"user_id"`
+}
+
 // Transaction defines model for Transaction.
 type Transaction struct {
 	Amount      float64            `json:"amount"`
@@ -65,6 +71,9 @@ type Wallet struct {
 // ScheduleTransactionJSONRequestBody defines body for ScheduleTransaction for application/json ContentType.
 type ScheduleTransactionJSONRequestBody = NewTransaction
 
+// CreateWalletJSONRequestBody defines body for CreateWallet for application/json ContentType.
+type CreateWalletJSONRequestBody = NewWallet
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Schedule a new transaction
@@ -73,6 +82,12 @@ type ServerInterface interface {
 	// Get transaction details
 	// (GET /transactions/{transactionId})
 	GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID)
+	// Create a new wallet
+	// (POST /wallets)
+	CreateWallet(w http.ResponseWriter, r *http.Request)
+	// Delete a wallet
+	// (DELETE /wallets/{userId})
+	DeleteWallet(w http.ResponseWriter, r *http.Request, userId string)
 	// Get wallet details for a user
 	// (GET /wallets/{userId})
 	GetWalletByUserId(w http.ResponseWriter, r *http.Request, userId string)
@@ -91,6 +106,18 @@ func (_ Unimplemented) ScheduleTransaction(w http.ResponseWriter, r *http.Reques
 // Get transaction details
 // (GET /transactions/{transactionId})
 func (_ Unimplemented) GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a new wallet
+// (POST /wallets)
+func (_ Unimplemented) CreateWallet(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete a wallet
+// (DELETE /wallets/{userId})
+func (_ Unimplemented) DeleteWallet(w http.ResponseWriter, r *http.Request, userId string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -139,6 +166,45 @@ func (siw *ServerInterfaceWrapper) GetTransactionById(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetTransactionById(w, r, transactionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateWallet operation middleware
+func (siw *ServerInterfaceWrapper) CreateWallet(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateWallet(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteWallet operation middleware
+func (siw *ServerInterfaceWrapper) DeleteWallet(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "userId" -------------
+	var userId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteWallet(w, r, userId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -291,6 +357,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/transactions/{transactionId}", wrapper.GetTransactionById)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/wallets", wrapper.CreateWallet)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/wallets/{userId}", wrapper.DeleteWallet)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/wallets/{userId}", wrapper.GetWalletByUserId)

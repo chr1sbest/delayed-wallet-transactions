@@ -24,8 +24,7 @@ func TestScheduleTransaction(t *testing.T) {
 	newApiTx := api.NewTransaction{
 		FromUserId:  "user-a",
 		ToUserId:    "user-b",
-		Amount:      100.0,
-		Currency:    "USD",
+		Amount:      100,
 		ScheduledAt: time.Now().Add(10 * time.Minute),
 	}
 
@@ -36,7 +35,6 @@ func TestScheduleTransaction(t *testing.T) {
 		FromUserId:  newApiTx.FromUserId,
 		ToUserId:    newApiTx.ToUserId,
 		Amount:      newApiTx.Amount,
-		Currency:    newApiTx.Currency,
 		Status:      models.RESERVED,
 		ScheduledAt: newApiTx.ScheduledAt,
 		CreatedAt:   time.Now(),

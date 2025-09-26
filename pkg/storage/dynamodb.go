@@ -154,6 +154,63 @@ func (s *DynamoDBStore) GetTransaction(ctx context.Context, txID openapi_types.U
 	return &tx, nil
 }
 
+// CreateWallet creates a new wallet record in DynamoDB.
+func (s *DynamoDBStore) CreateWallet(ctx context.Context, wallet *models.Wallet) (*models.Wallet, error) {
+	// Marshal the wallet object for the Put operation.
+	walletAV, err := attributevalue.MarshalMap(wallet)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal wallet: %w", err)
+	}
+
+	// Construct the PutItem input.
+	input := &dynamodb.PutItemInput{
+		TableName:           aws.String(s.WalletsTableName),
+		Item:                walletAV,
+		ConditionExpression: aws.String("attribute_not_exists(user_id)"), // Prevent overwriting existing wallets.
+	}
+
+	// Execute the PutItem operation.
+	_, err = s.Client.PutItem(ctx, input)
+	if err != nil {
+		var condCheckFailed *types.ConditionalCheckFailedException
+		if errors.As(err, &condCheckFailed) {
+			return nil, fmt.Errorf("wallet for user ID %s already exists", wallet.UserId)
+		}
+		return nil, fmt.Errorf("failed to create wallet in DynamoDB: %w", err)
+	}
+
+	// Return the wallet object as it was successfully created.
+	return wallet, nil
+}
+
+// DeleteWallet deletes a wallet record from DynamoDB.
+func (s *DynamoDBStore) DeleteWallet(ctx context.Context, userID string) error {
+	// Marshal the key for the DeleteItem operation.
+	key, err := attributevalue.MarshalMap(map[string]string{"user_id": userID})
+	if err != nil {
+		return fmt.Errorf("failed to marshal wallet user ID for deletion: %w", err)
+	}
+
+	// Construct the DeleteItem input.
+	input := &dynamodb.DeleteItemInput{
+		TableName:           aws.String(s.WalletsTableName),
+		Key:                 key,
+		ConditionExpression: aws.String("attribute_exists(user_id)"), // Ensure the wallet exists before deleting.
+	}
+
+	// Execute the DeleteItem operation.
+	_, err = s.Client.DeleteItem(ctx, input)
+	if err != nil {
+		var condCheckFailed *types.ConditionalCheckFailedException
+		if errors.As(err, &condCheckFailed) {
+			return fmt.Errorf("wallet for user ID %s not found", userID)
+		}
+		return fmt.Errorf("failed to delete wallet from DynamoDB: %w", err)
+	}
+
+	return nil
+}
+
 // GetWallet retrieves a user's wallet from DynamoDB by their user ID.
 func (s *DynamoDBStore) GetWallet(ctx context.Context, userID string) (*models.Wallet, error) {
 	key, err := attributevalue.MarshalMap(map[string]string{"user_id": userID})

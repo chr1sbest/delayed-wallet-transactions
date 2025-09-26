@@ -25,6 +25,28 @@ paths:
         '400':
           description: Invalid request
 
+  /wallets:
+    post:
+      summary: Create a new wallet
+      operationId: createWallet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewWallet'
+      responses:
+        '201':
+          description: Wallet successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '400':
+          description: Invalid request
+        '409':
+          description: Wallet for this user already exists
+
   /wallets/{userId}:
     get:
       summary: Get wallet details for a user
@@ -42,6 +64,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Wallet'
+        '404':
+          description: Wallet not found
+    delete:
+      summary: Delete a wallet
+      operationId: deleteWallet
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Wallet successfully deleted
         '404':
           description: Wallet not found
 
@@ -68,20 +104,25 @@ paths:
 
 components:
   schemas:
+    NewWallet:
+      type: object
+      properties:
+        user_id:
+          type: string
+      required:
+        - user_id
+
     NewTransaction:
       type: object
       properties:
-        from_user_id: 
+        from_user_id:
           type: string
         to_user_id:
           type: string
         amount:
-          type: number
-          format: double
+          type: integer
+          format: int64
           description: The amount to transfer.
-        currency:
-          type: string
-          example: "USD"
         scheduled_at:
           type: string
           format: date-time
@@ -90,7 +131,6 @@ components:
         - from_user_id
         - to_user_id
         - amount
-        - currency
         - scheduled_at
 
     Transaction:
@@ -99,15 +139,13 @@ components:
         id:
           type: string
           format: uuid
-        from_user_id: 
+        from_user_id:
           type: string
         to_user_id:
           type: string
         amount:
-          type: number
-          format: double
-        currency:
-          type: string
+          type: integer
+          format: int64
         status:
           type: string
           enum: ["RESERVED", "PENDING_APPROVAL", "APPROVED", "REJECTED", "COMPLETED", "FAILED"]
@@ -125,7 +163,6 @@ components:
         - from_user_id
         - to_user_id
         - amount
-        - currency
         - status
         - scheduled_at
         - created_at
@@ -137,13 +174,11 @@ components:
         user_id:
           type: string
         balance:
-          type: number
-          format: double
+          type: integer
+          format: int64
         reserved:
-          type: number
-          format: double
-        currency:
-          type: string
+          type: integer
+          format: int64
         version:
           type: integer
           format: int64
@@ -152,5 +187,4 @@ components:
         - user_id
         - balance
         - reserved
-        - currency
         - version

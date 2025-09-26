@@ -48,6 +48,54 @@ func (_m *Storage) CreateTransaction(ctx context.Context, newTx *models.Transact
 	return r0, r1
 }
 
+// CreateWallet provides a mock function with given fields: ctx, wallet
+func (_m *Storage) CreateWallet(ctx context.Context, wallet *models.Wallet) (*models.Wallet, error) {
+	ret := _m.Called(ctx, wallet)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateWallet")
+	}
+
+	var r0 *models.Wallet
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Wallet) (*models.Wallet, error)); ok {
+		return rf(ctx, wallet)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Wallet) *models.Wallet); ok {
+		r0 = rf(ctx, wallet)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Wallet)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *models.Wallet) error); ok {
+		r1 = rf(ctx, wallet)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// DeleteWallet provides a mock function with given fields: ctx, userID
+func (_m *Storage) DeleteWallet(ctx context.Context, userID string) error {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteWallet")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // GetStuckTransactions provides a mock function with given fields: ctx, maxAge
 func (_m *Storage) GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]models.Transaction, error) {
 	ret := _m.Called(ctx, maxAge)

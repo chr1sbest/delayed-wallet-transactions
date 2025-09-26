@@ -12,7 +12,6 @@ func ToApiTransaction(tx *models.Transaction) *api.Transaction {
 		FromUserId:  tx.FromUserId,
 		ToUserId:    tx.ToUserId,
 		Amount:      tx.Amount,
-		Currency:    tx.Currency,
 		Status:      api.TransactionStatus(tx.Status),
 		ScheduledAt: tx.ScheduledAt,
 		CreatedAt:   tx.CreatedAt,
@@ -27,7 +26,6 @@ func ToDomainNewTransaction(newTx *api.NewTransaction) *models.Transaction {
 		FromUserId:  newTx.FromUserId,
 		ToUserId:    newTx.ToUserId,
 		Amount:      newTx.Amount,
-		Currency:    newTx.Currency,
 		ScheduledAt: newTx.ScheduledAt,
 	}
 }
@@ -38,8 +36,16 @@ func ToApiWallet(wallet *models.Wallet) *api.Wallet {
 		UserId:   wallet.UserId,
 		Balance:  wallet.Balance,
 		Reserved: wallet.Reserved,
-		Currency: wallet.Currency,
 		Version:  wallet.Version,
+	}
+}
+
+// ToDomainNewWallet converts an API NewWallet model to a domain Wallet model.
+func ToDomainNewWallet(newWallet *api.NewWallet) *models.Wallet {
+	return &models.Wallet{
+		UserId:  newWallet.UserId,
+		Balance: 1000, // Seed new wallets with 1000 units.
+		Version: 1,
 	}
 }
 
@@ -50,7 +56,6 @@ func ToDomainTransaction(tx *api.Transaction) *models.Transaction {
 		FromUserId:  tx.FromUserId,
 		ToUserId:    tx.ToUserId,
 		Amount:      tx.Amount,
-		Currency:    tx.Currency,
 		Status:      models.TransactionStatus(tx.Status),
 		ScheduledAt: tx.ScheduledAt,
 		CreatedAt:   tx.CreatedAt,

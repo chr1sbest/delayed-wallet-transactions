@@ -12,7 +12,7 @@ mocks:
 .PHONY: generate
 generate:
 	@echo "Generating server code from OpenAPI spec..."
-	@go run -mod=mod github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen --config=pkg/api/codegen.cfg.yaml api/spec.yaml
+	@go run -mod=mod github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen --generate=types,chi-server --package=api -o pkg/api/server.gen.go api/spec.yaml
 	@echo "Server code generated successfully."
 
 .PHONY: help

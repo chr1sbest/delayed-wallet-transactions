@@ -22,8 +22,7 @@ type Transaction struct {
 	Id          openapi_types.UUID `dynamodbav:"id"`
 	FromUserId  string             `dynamodbav:"from_user_id"`
 	ToUserId    string             `dynamodbav:"to_user_id"`
-	Amount      float64            `dynamodbav:"amount"`
-	Currency    string             `dynamodbav:"currency"`
+	Amount      int64              `dynamodbav:"amount"`
 	Status      TransactionStatus  `dynamodbav:"status"`
 	ScheduledAt time.Time          `dynamodbav:"scheduled_at"`
 	CreatedAt   time.Time          `dynamodbav:"created_at"`
@@ -33,9 +32,8 @@ type Transaction struct {
 // Wallet represents the internal domain model for a user's wallet.
 type Wallet struct {
 	UserId   string  `dynamodbav:"user_id"`
-	Balance  float64 `dynamodbav:"balance"`
-	Reserved float64 `dynamodbav:"reserved"`
-	Currency string  `dynamodbav:"currency"`
+	Balance  int64   `dynamodbav:"balance"`
+	Reserved int64   `dynamodbav:"reserved"`
 	Version  int64   `dynamodbav:"version"`
 }
 
@@ -44,8 +42,8 @@ type LedgerEntry struct {
 	TransactionID string    `dynamodbav:"transaction_id"`
 	EntryID       string    `dynamodbav:"entry_id"`
 	AccountID     string    `dynamodbav:"account_id"`
-	Debit         float64   `dynamodbav:"debit,omitempty"`
-	Credit        float64   `dynamodbav:"credit,omitempty"`
+	Debit         int64     `dynamodbav:"debit,omitempty"`
+	Credit        int64     `dynamodbav:"credit,omitempty"`
 	Description   string    `dynamodbav:"description"`
 	Timestamp     time.Time `dynamodbav:"timestamp"`
 }

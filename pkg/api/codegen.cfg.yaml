@@ -1,5 +1,5 @@
 package: api
-output: server.gen.go
+output: ../../server.gen.go
 generate:
   - chi-server
   - types

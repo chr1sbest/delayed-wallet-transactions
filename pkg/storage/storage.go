@@ -19,6 +19,12 @@ type Storage interface {
 	// GetWallet retrieves a user's wallet by their user ID.
 	GetWallet(ctx context.Context, userID string) (*models.Wallet, error)
 
+	// CreateWallet creates a new wallet for a user.
+	CreateWallet(ctx context.Context, wallet *models.Wallet) (*models.Wallet, error)
+
+	// DeleteWallet deletes a user's wallet.
+	DeleteWallet(ctx context.Context, userID string) error
+
 	// SettleTransaction performs the final atomic settlement of a transaction.
 	SettleTransaction(ctx context.Context, tx *models.Transaction) error
 

@@ -79,6 +79,51 @@ func (h *ApiHandler) GetTransactionById(w http.ResponseWriter, r *http.Request, 
 }
 
 // GetWalletByUserId handles the logic for retrieving a user's wallet.
+// CreateWallet handles the logic for creating a new wallet.
+func (h *ApiHandler) CreateWallet(w http.ResponseWriter, r *http.Request) {
+	// Decode the request body.
+	var newWallet api.NewWallet
+	if err := json.NewDecoder(r.Body).Decode(&newWallet); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Map the API request to our internal domain model.
+	domainWallet := mapping.ToDomainNewWallet(&newWallet)
+
+	// Call the storage layer to create the wallet.
+	createdWallet, err := h.Store.CreateWallet(r.Context(), domainWallet)
+	if err != nil {
+		if strings.Contains(err.Error(), "wallet already exists") { // This is a simplistic check.
+			http.Error(w, "Wallet for this user already exists", http.StatusConflict)
+		} else {
+			http.Error(w, fmt.Sprintf("Failed to create wallet: %v", err), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Map the domain model response back to the API model and respond.
+	apiWallet := mapping.ToApiWallet(createdWallet)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(apiWallet); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to write response: %v", err), http.StatusInternalServerError)
+	}
+}
+
+// DeleteWallet handles the logic for deleting a user's wallet.
+func (h *ApiHandler) DeleteWallet(w http.ResponseWriter, r *http.Request, userId string) {
+	// Call the storage layer to delete the wallet.
+	if err := h.Store.DeleteWallet(r.Context(), userId); err != nil {
+		// A more robust implementation would check for a specific "not found" error.
+		http.Error(w, fmt.Sprintf("Failed to delete wallet: %v", err), http.StatusNotFound)
+		return
+	}
+
+	// Respond with a success status.
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *ApiHandler) GetWalletByUserId(w http.ResponseWriter, r *http.Request, userId string) {
 	// Call the storage layer to get the wallet.
 	domainWallet, err := h.Store.GetWallet(r.Context(), userId)
