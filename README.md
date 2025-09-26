@@ -41,17 +41,12 @@ Ensuring financial correctness in a distributed system is the primary challenge.
 
 ### Setup
 
-1.  **Clone the repository:**
-    ```sh
-    git clone <repository-url>
-    ```
-
-2.  **Install dependencies:**
+1.  **Install dependencies:**
     ```sh
     go mod tidy
     ```
 
-3.  **Configure your environment:**
+2.  **Configure your environment:**
     - Copy the `.env.example` file to `.env`:
       ```sh
       cp .env.example .env
@@ -62,14 +57,14 @@ Ensuring financial correctness in a distributed system is the primary challenge.
       - `DYNAMODB_LEDGER_TABLE_NAME`
       - `SQS_QUEUE_URL`
 
-4.  **Set up AWS Resources:**
+3.  **Set up AWS Resources:**
     - Create the three DynamoDB tables with the specified primary keys:
       - **Transactions Table**: Primary Key `id` (String)
       - **Wallets Table**: Primary Key `user_id` (String)
       - **Ledger Table**: Primary Key `TransactionID` (String), Sort Key `EntryID` (String)
     - Create the SQS queue.
 
-5.  **Run the application:**
+4.  **Run the application:**
     ```sh
     go run ./cmd/app/main.go
     ```
