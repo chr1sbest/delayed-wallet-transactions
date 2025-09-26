@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/mapping"
@@ -13,11 +15,11 @@ import (
 
 // WalletsHandler holds the dependencies for wallet-related handlers.
 type WalletsHandler struct {
-	Store storage.Storage
+	Store storage.WalletStore
 }
 
 // NewWalletsHandler creates a new WalletsHandler.
-func NewWalletsHandler(store storage.Storage) *WalletsHandler {
+func NewWalletsHandler(store storage.WalletStore) *WalletsHandler {
 	return &WalletsHandler{Store: store}
 }
 
@@ -30,6 +32,7 @@ func (h *WalletsHandler) CreateWallet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	domainWallet := mapping.ToDomainNewWallet(&newWallet)
+	domainWallet.CreatedAt = time.Now()
 
 	createdWallet, err := h.Store.CreateWallet(r.Context(), domainWallet)
 	if err != nil {
@@ -60,12 +63,18 @@ func (h *WalletsHandler) DeleteWallet(w http.ResponseWriter, r *http.Request, us
 }
 
 // ListWallets handles the logic for retrieving all wallets.
+
 func (h *WalletsHandler) ListWallets(w http.ResponseWriter, r *http.Request) {
 	domainWallets, err := h.Store.ListWallets(r.Context())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to retrieve wallets: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	// Sort wallets by CreatedAt in descending order.
+	sort.Slice(domainWallets, func(i, j int) bool {
+		return domainWallets[i].CreatedAt.After(domainWallets[j].CreatedAt)
+	})
 
 	apiWallets := make([]*api.Wallet, len(domainWallets))
 	for i, wallet := range domainWallets {

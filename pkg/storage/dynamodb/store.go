@@ -24,12 +24,21 @@ type Store struct {
 	LedgerTableName       string
 }
 
-// New creates a new Store.
+// New creates a new Store with all table dependencies.
 func New(client DynamoDBAPI, transactionsTable, walletsTable, ledgerTable string) *Store {
 	return &Store{
 		Client:                client,
 		TransactionsTableName: transactionsTable,
 		WalletsTableName:      walletsTable,
 		LedgerTableName:       ledgerTable,
+	}
+}
+
+// NewTransactionReader creates a new store that only requires the transactions table.
+// It's used by components that only need to read from the transactions table.
+func NewTransactionReader(client DynamoDBAPI, transactionsTable string) *Store {
+	return &Store{
+		Client:                client,
+		TransactionsTableName: transactionsTable,
 	}
 }

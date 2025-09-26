@@ -132,14 +132,30 @@ Outputs:
           DYNAMODB_LEDGER_TABLE_NAME: !Ref LedgerTable
           SQS_QUEUE_URL: !Ref TransactionQueue
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref TransactionsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref WalletsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref LedgerTable
         - SQSSendMessagePolicy:
             QueueName: !GetAtt TransactionQueue.QueueName
+        - IAMPolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                Resource: !GetAtt TransactionsTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                Resource: !GetAtt WalletsTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                Resource: !GetAtt LedgerTable.Arn
 
   ReconciliationLambda:
     Type: AWS::Serverless::Function

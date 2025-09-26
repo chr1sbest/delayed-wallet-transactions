@@ -16,7 +16,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var store storage.Storage
+var store storage.SettlementStore
 
 func init() {
 	// Load environment variables from .env file (useful for local testing).

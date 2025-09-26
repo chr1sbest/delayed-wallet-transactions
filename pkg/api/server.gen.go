@@ -26,15 +26,12 @@ const (
 // LedgerEntry defines model for LedgerEntry.
 type LedgerEntry struct {
 	AccountId     *string    `json:"account_id,omitempty"`
-	Balance       *int64     `json:"balance,omitempty"`
 	Credit        *int64     `json:"credit,omitempty"`
 	Debit         *int64     `json:"debit,omitempty"`
 	Description   *string    `json:"description,omitempty"`
 	EntryId       *string    `json:"entry_id,omitempty"`
-	Reserved      *int64     `json:"reserved,omitempty"`
 	Timestamp     *time.Time `json:"timestamp,omitempty"`
 	TransactionId *string    `json:"transaction_id,omitempty"`
-	Version       *int64     `json:"version,omitempty"`
 }
 
 // NewTransaction defines model for NewTransaction.
@@ -50,6 +47,7 @@ type NewTransaction struct {
 
 // NewWallet defines model for NewWallet.
 type NewWallet struct {
+	Name   string `json:"name"`
 	UserId string `json:"user_id"`
 }
 
@@ -61,8 +59,10 @@ type Transaction struct {
 	Id         *openapi_types.UUID `json:"id,omitempty"`
 	Status     *TransactionStatus  `json:"status,omitempty"`
 	ToUserId   *string             `json:"to_user_id,omitempty"`
-	Ttl        *int64              `json:"ttl,omitempty"`
-	UpdatedAt  *time.Time          `json:"updated_at,omitempty"`
+
+	// Ttl A Unix timestamp representing the expiration time of the transaction record.
+	Ttl       *int64     `json:"ttl,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 // TransactionStatus defines model for Transaction.Status.
@@ -71,9 +71,11 @@ type TransactionStatus string
 // Wallet defines model for Wallet.
 type Wallet struct {
 	// Balance The wallet balance in the smallest currency unit (e.g., cents).
-	Balance *int64 `json:"balance,omitempty"`
+	Balance   *int64     `json:"balance,omitempty"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	Name      *string    `json:"name,omitempty"`
 
-	// Reserved The reserved balance in the smallest currency unit (e.g., cents).
+	// Reserved Funds reserved for pending transactions.
 	Reserved *int64  `json:"reserved,omitempty"`
 	UserId   *string `json:"user_id,omitempty"`
 	Version  *int64  `json:"version,omitempty"`

@@ -17,7 +17,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var store storage.Storage
+var store storage.TransactionReader
 var sqsScheduler scheduler.CronScheduler
 
 const stuckTransactionThreshold = 20 * time.Minute
@@ -42,10 +42,8 @@ func init() {
 	sqsScheduler = scheduler.NewSQSScheduler(sqsClient, sqsQueueURL)
 
 	transactionsTable := os.Getenv("DYNAMODB_TRANSACTIONS_TABLE_NAME")
-	walletsTable := os.Getenv("DYNAMODB_WALLETS_TABLE_NAME")
-	ledgerTable := os.Getenv("DYNAMODB_LEDGER_TABLE_NAME")
 
-	store = dydbstore.New(dbClient, transactionsTable, walletsTable, ledgerTable)
+	store = dydbstore.NewTransactionReader(dbClient, transactionsTable)
 }
 
 // HandleRequest is triggered by an EventBridge Schedule.

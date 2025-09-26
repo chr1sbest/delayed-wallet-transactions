@@ -32,10 +32,12 @@ func ToDomainNewTransaction(newTx *api.NewTransaction) *models.Transaction {
 // ToApiWallet converts a domain Wallet model to an API Wallet model.
 func ToApiWallet(wallet *models.Wallet) *api.Wallet {
 	return &api.Wallet{
-		UserId:   &wallet.UserId,
-		Balance:  &wallet.Balance,
-		Reserved: &wallet.Reserved,
-		Version:  &wallet.Version,
+		UserId:    &wallet.UserId,
+		Name:      &wallet.Name,
+		Balance:   &wallet.Balance,
+		Reserved:  &wallet.Reserved,
+		Version:   &wallet.Version,
+		CreatedAt: &wallet.CreatedAt,
 	}
 }
 
@@ -43,12 +45,13 @@ func ToApiWallet(wallet *models.Wallet) *api.Wallet {
 func ToDomainNewWallet(newWallet *api.NewWallet) *models.Wallet {
 	return &models.Wallet{
 		UserId:  newWallet.UserId,
+		Name:    newWallet.Name,
 		Balance: 1000, // Seed new wallets with 1000 units.
 		Version: 1,
 	}
 }
 
-// ToDomainTransaction converts an API Transaction model to a domain Transaction model.
+
 func ToApiLedgerEntry(entry *models.LedgerEntry) *api.LedgerEntry {
 	return &api.LedgerEntry{
 		TransactionId: &entry.TransactionID,

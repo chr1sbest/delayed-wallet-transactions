@@ -6,15 +6,15 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// TransactionStatus defines the possible statuses of a transaction.
+// TransactionStatus defines the possible states of a transaction.
 type TransactionStatus string
 
 const (
 	RESERVED  TransactionStatus = "RESERVED"
 	APPROVED  TransactionStatus = "APPROVED"
 	COMPLETED TransactionStatus = "COMPLETED"
-	REJECTED  TransactionStatus = "REJECTED"
 	CANCELLED TransactionStatus = "CANCELLED"
+	FAILED    TransactionStatus = "FAILED"
 )
 
 // Transaction represents the internal domain model for a transaction.
@@ -32,17 +32,19 @@ type Transaction struct {
 
 // Wallet represents the internal domain model for a user's wallet.
 type Wallet struct {
-	UserId   string  `dynamodbav:"user_id"`
-	Balance  int64   `dynamodbav:"balance"`
-	Reserved int64   `dynamodbav:"reserved"`
-	Version  int64   `dynamodbav:"version"`
-	TTL      int64   `dynamodbav:"ttl,omitempty"`
+	UserId    string    `json:"user_id" dynamodbav:"user_id"`
+	Name      string    `json:"name" dynamodbav:"name"`
+	Balance   int64     `json:"balance" dynamodbav:"balance"`
+	Reserved  int64     `json:"reserved" dynamodbav:"reserved"`
+	Version   int64     `json:"version" dynamodbav:"version"`
+	CreatedAt time.Time `json:"created_at" dynamodbav:"created_at"`
+	TTL       int64     `dynamodbav:"ttl,omitempty"`
 }
 
 // LedgerEntry represents a single entry in the double-entry ledger.
 type LedgerEntry struct {
-	TransactionID string    `dynamodbav:"transaction_id"`
 	EntryID       string    `dynamodbav:"entry_id"`
+	TransactionID string    `dynamodbav:"transaction_id"`
 	AccountID     string    `dynamodbav:"account_id"`
 	Debit         int64     `dynamodbav:"debit,omitempty"`
 	Credit        int64     `dynamodbav:"credit,omitempty"`

@@ -17,7 +17,7 @@ type ApiHandler struct {
 }
 
 // NewApiHandler creates a new ApiHandler with a storage dependency.
-func NewApiHandler(store storage.Storage, scheduler scheduler.CronScheduler) *ApiHandler {
+func NewApiHandler(store storage.ApiStore, scheduler scheduler.CronScheduler) *ApiHandler {
 	return &ApiHandler{
 		TransactionsHandler: transactions.NewTransactionsHandler(store, scheduler),
 		WalletsHandler:      wallets.NewWalletsHandler(store),

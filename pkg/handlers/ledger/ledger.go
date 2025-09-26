@@ -12,11 +12,11 @@ import (
 
 // LedgerHandler holds the dependencies for ledger-related handlers.
 type LedgerHandler struct {
-	Store storage.Storage
+	Store storage.LedgerReader
 }
 
 // NewLedgerHandler creates a new LedgerHandler.
-func NewLedgerHandler(store storage.Storage) *LedgerHandler {
+func NewLedgerHandler(store storage.LedgerReader) *LedgerHandler {
 	return &LedgerHandler{Store: store}
 }
 

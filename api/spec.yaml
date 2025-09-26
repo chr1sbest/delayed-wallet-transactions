@@ -175,30 +175,22 @@ paths:
 
 components:
   schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+
     NewWallet:
       type: object
-      properties:
-        user_id:
-          type: string
       required:
         - user_id
-
-    Wallet:
-      type: object
+        - name
       properties:
         user_id:
           type: string
-        balance:
-          type: integer
-          format: int64
-          description: "The wallet balance in the smallest currency unit (e.g., cents)."
-        reserved:
-          type: integer
-          format: int64
-          description: "The reserved balance in the smallest currency unit (e.g., cents)."
-        version:
-          type: integer
-          format: int64
+        name:
+          type: string
 
     NewTransaction:
       type: object
@@ -249,6 +241,7 @@ components:
         ttl:
           type: integer
           format: int64
+          description: "A Unix timestamp representing the expiration time of the transaction record."
 
     LedgerEntry:
       type: object
@@ -270,12 +263,25 @@ components:
           format: date-time
         description:
           type: string
+
+    Wallet:
+      type: object
+      properties:
+        user_id:
+          type: string
+        name:
+          type: string
         balance:
           type: integer
           format: int64
+          description: "The wallet balance in the smallest currency unit (e.g., cents)."
         reserved:
           type: integer
           format: int64
+          description: "Funds reserved for pending transactions."
         version:
           type: integer
           format: int64
+        created_at:
+          type: string
+          format: date-time

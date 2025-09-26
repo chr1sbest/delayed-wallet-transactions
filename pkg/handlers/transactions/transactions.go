@@ -17,16 +17,17 @@ import (
 
 // TransactionsHandler holds the dependencies for transaction-related handlers.
 type TransactionsHandler struct {
-	Store     storage.Storage
+	Store     storage.TransactionStore
 	Scheduler scheduler.CronScheduler
 }
 
 // NewTransactionsHandler creates a new TransactionsHandler.
-func NewTransactionsHandler(store storage.Storage, scheduler scheduler.CronScheduler) *TransactionsHandler {
+func NewTransactionsHandler(store storage.TransactionStore, scheduler scheduler.CronScheduler) *TransactionsHandler {
 	return &TransactionsHandler{Store: store, Scheduler: scheduler}
 }
 
 // ScheduleTransaction handles the logic for scheduling a new transaction.
+
 func (h *TransactionsHandler) ScheduleTransaction(w http.ResponseWriter, r *http.Request) {
 	var newTx api.NewTransaction
 	if err := json.NewDecoder(r.Body).Decode(&newTx); err != nil {
