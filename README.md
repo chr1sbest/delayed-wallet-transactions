@@ -8,11 +8,14 @@ The system allows users to schedule a transfer of funds to another user at a fut
 
 This service is built using a modern, event-driven architecture on AWS, prioritizing correctness and resilience.
 
-- **Strongly Consistent Data Layer**: The core of the system is a three-table DynamoDB model (`Wallets`, `Transactions`, `LedgerEntries`). Fund reservations are handled atomically using `TransactWriteItems` operations with optimistic locking (via a `version` attribute) to prevent race conditions and ensure data integrity.
+- **Atomic & Idempotent Transactions**: The core challenge in a financial system is preventing race conditions (like double-spends or double-settlements). We solve this by using DynamoDB's `TransactWriteItems` for all critical state changes. 
+  - **Fund Reservation**: When a transaction is created, we atomically decrement the sender's balance and create the transaction record. This is protected by an optimistic lock (`version` number) on the user's wallet, preventing concurrent modifications.
+  - **Fund Settlement**: When a transaction is settled, we atomically update both users' wallets, create the immutable ledger entries, and update the transaction status from `APPROVED` to `COMPLETED`. This entire operation is conditioned on the transaction's status being `APPROVED`, making the settlement process idempotent and safe to retry.
 - **Asynchronous Processing**: Upon successful creation, transactions are published to an SQS queue. This decouples the API from the processing logic, ensuring the API remains fast and responsive. The current design uses SQS's `DelaySeconds` feature and is suitable for delays of up to 15 minutes.
 - **State Machine**: The `Transaction` object acts as a state machine, transitioning through statuses like `RESERVED`, `APPROVED`, and `COMPLETED`.
 - **Idempotency**: All critical operations are designed to be idempotent. For example, creating a transaction uses a conditional write to prevent duplicate records.
-- **Double-Entry Ledger**: The design includes an append-only `LedgerEntries` table to provide a complete and immutable audit trail of all financial movements (to be implemented).
+- **Double-Entry Ledger**: The design includes an append-only `LedgerEntries` table to provide a complete and immutable audit trail of all financial movements.
+- **Self-Healing via Reconciliation**: A scheduled Lambda function periodically scans for transactions that have been in a `RESERVED` state for too long. This catches cases where the post-creation SQS message failed to send, making the system self-healing by re-enqueuing the stuck transaction for processing.
 
 ## Getting Started
 

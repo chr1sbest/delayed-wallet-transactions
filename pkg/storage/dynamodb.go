@@ -353,3 +353,44 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *api.Transacti
 	// After success, the transaction status is now COMPLETED.
 	return nil
 }
+
+const stuckTransactionGSI = "status-created_at-index"
+
+// GetStuckTransactions retrieves transactions that are in a 'RESERVED' state for longer than the specified duration.
+func (s *DynamoDBStore) GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]api.Transaction, error) {
+	// Calculate the cutoff time.
+	cutoffTime := time.Now().Add(-maxAge)
+	cutoffTimeStr, err := cutoffTime.MarshalText()
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal cutoff time: %w", err)
+	}
+
+	// Prepare the query input.
+	input := &dynamodb.QueryInput{
+		TableName:              aws.String(s.TransactionsTableName),
+		IndexName:              aws.String(stuckTransactionGSI),
+		KeyConditionExpression: aws.String("#status = :status"),
+		FilterExpression:       aws.String("created_at < :cutoff"),
+		ExpressionAttributeNames: map[string]string{
+			"#status": "status",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":status": &types.AttributeValueMemberS{Value: string(api.RESERVED)},
+			":cutoff": &types.AttributeValueMemberS{Value: string(cutoffTimeStr)},
+		},
+	}
+
+	// Execute the query.
+	result, err := s.Client.Query(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query for stuck transactions: %w", err)
+	}
+
+	// Unmarshal the results.
+	var transactions []api.Transaction
+	if err := attributevalue.UnmarshalListOfMaps(result.Items, &transactions); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal stuck transactions: %w", err)
+	}
+
+	return transactions, nil
+}

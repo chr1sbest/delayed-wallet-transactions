@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"time"
 
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -21,4 +22,7 @@ type Storage interface {
 
 	// SettleTransaction performs the final atomic settlement of a transaction.
 	SettleTransaction(ctx context.Context, tx *api.Transaction) error
+
+	// GetStuckTransactions retrieves transactions that are in a 'RESERVED' state for longer than the specified duration.
+	GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]api.Transaction, error)
 }
