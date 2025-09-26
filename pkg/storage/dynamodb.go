@@ -263,6 +263,20 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *api.Transacti
 		return fmt.Errorf("failed to marshal credit entry: %w", err)
 	}
 
+	// Prepare attribute values for the transaction status update.
+	completedStatusAV, err := attributevalue.Marshal(api.COMPLETED)
+	if err != nil {
+		return fmt.Errorf("failed to marshal completed status: %w", err)
+	}
+	approvedStatusAV, err := attributevalue.Marshal(api.APPROVED)
+	if err != nil {
+		return fmt.Errorf("failed to marshal approved status: %w", err)
+	}
+	nowAV, err := attributevalue.Marshal(now)
+	if err != nil {
+		return fmt.Errorf("failed to marshal timestamp for status update: %w", err)
+	}
+
 	// 4. Construct the TransactWriteItems input.
 	input := &dynamodb.TransactWriteItemsInput{
 		TransactItems: []types.TransactWriteItem{
@@ -310,6 +324,23 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *api.Transacti
 					ConditionExpression: aws.String("attribute_not_exists(entry_id)"),
 				},
 			},
+			{
+				// Operation 5: Update the transaction status to COMPLETED.
+				Update: &types.Update{
+					TableName: aws.String(s.TransactionsTableName),
+					Key:       map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: tx.Id.String()}},
+					UpdateExpression:    aws.String("SET #status = :completed_status, updated_at = :now"),
+					ConditionExpression: aws.String("#status = :approved_status"),
+					ExpressionAttributeNames: map[string]string{
+						"#status": "status",
+					},
+					ExpressionAttributeValues: map[string]types.AttributeValue{
+						":completed_status": completedStatusAV,
+						":approved_status":  approvedStatusAV,
+						":now":              nowAV,
+					},
+				},
+			},
 		},
 	}
 
@@ -319,8 +350,6 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *api.Transacti
 		return fmt.Errorf("failed to execute settlement transaction: %w", err)
 	}
 
-	// After success, we would also update the transaction status to COMPLETED.
-	// This is omitted for brevity but would be an UpdateItem call on the Transactions table.
-
+	// After success, the transaction status is now COMPLETED.
 	return nil
 }

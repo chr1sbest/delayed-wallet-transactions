@@ -9,7 +9,7 @@ The system allows users to schedule a transfer of funds to another user at a fut
 This service is built using a modern, event-driven architecture on AWS, prioritizing correctness and resilience.
 
 - **Strongly Consistent Data Layer**: The core of the system is a three-table DynamoDB model (`Wallets`, `Transactions`, `LedgerEntries`). Fund reservations are handled atomically using `TransactWriteItems` operations with optimistic locking (via a `version` attribute) to prevent race conditions and ensure data integrity.
-- **Asynchronous Processing**: Upon successful creation, transactions are published to an SQS queue. This decouples the API from the processing logic, ensuring the API remains fast and responsive.
+- **Asynchronous Processing**: Upon successful creation, transactions are published to an SQS queue. This decouples the API from the processing logic, ensuring the API remains fast and responsive. The current design uses SQS's `DelaySeconds` feature and is suitable for delays of up to 15 minutes.
 - **State Machine**: The `Transaction` object acts as a state machine, transitioning through statuses like `RESERVED`, `APPROVED`, and `COMPLETED`.
 - **Idempotency**: All critical operations are designed to be idempotent. For example, creating a transaction uses a conditional write to prevent duplicate records.
 - **Double-Entry Ledger**: The design includes an append-only `LedgerEntries` table to provide a complete and immutable audit trail of all financial movements (to be implemented).
@@ -18,7 +18,7 @@ This service is built using a modern, event-driven architecture on AWS, prioriti
 
 ### Prerequisites
 
-- Go (1.18+)
+- Go (1.24+)
 - Docker & Docker Compose (optional, for future containerization)
 - An AWS account with credentials configured in your environment.
 
