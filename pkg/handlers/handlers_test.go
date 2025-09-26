@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -22,7 +21,7 @@ import (
 
 func TestScheduleTransaction(t *testing.T) {
 	// Common test data
-	newTx := api.NewTransaction{
+	newApiTx := api.NewTransaction{
 		FromUserId:  "user-a",
 		ToUserId:    "user-b",
 		Amount:      100.0,
@@ -31,14 +30,15 @@ func TestScheduleTransaction(t *testing.T) {
 	}
 
 	txID := openapi_types.UUID(uuid.New())
-	expectedTx := &api.Transaction{
+	// This represents the object that comes back from the database
+	expectedDomainTx := &models.Transaction{
 		Id:          txID,
-		FromUserId:  newTx.FromUserId,
-		ToUserId:    newTx.ToUserId,
-		Amount:      newTx.Amount,
-		Currency:    newTx.Currency,
-		Status:      api.TransactionStatus(models.RESERVED),
-		ScheduledAt: newTx.ScheduledAt,
+		FromUserId:  newApiTx.FromUserId,
+		ToUserId:    newApiTx.ToUserId,
+		Amount:      newApiTx.Amount,
+		Currency:    newApiTx.Currency,
+		Status:      models.RESERVED,
+		ScheduledAt: newApiTx.ScheduledAt,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -46,15 +46,11 @@ func TestScheduleTransaction(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		// Arrange
 		mockStorage := new(mocks.Storage)
-		// The mock now expects a models.Transaction object.
-		mockStorage.On("CreateTransaction",
-			mock.AnythingOfType("context.Context"),
-			mock.AnythingOfType("*models.Transaction"),
-		).Return(mapping.ToDomainTransaction(expectedTx), nil)
+		mockStorage.On("CreateTransaction", mock.Anything, mock.Anything).Return(expectedDomainTx, nil)
 
 		h := NewApiHandler(mockStorage)
 
-		body, _ := json.Marshal(newTx)
+		body, _ := json.Marshal(newApiTx)
 		req := httptest.NewRequest(http.MethodPost, "/transactions", bytes.NewReader(body))
 		rr := httptest.NewRecorder()
 
@@ -66,8 +62,8 @@ func TestScheduleTransaction(t *testing.T) {
 
 		var returnedTx api.Transaction
 		json.Unmarshal(rr.Body.Bytes(), &returnedTx)
-		assert.Equal(t, expectedTx.Id, returnedTx.Id)
-		assert.Equal(t, expectedTx.Amount, returnedTx.Amount)
+		assert.Equal(t, expectedDomainTx.Id, returnedTx.Id)
+		assert.Equal(t, expectedDomainTx.Amount, returnedTx.Amount)
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -75,14 +71,11 @@ func TestScheduleTransaction(t *testing.T) {
 	t.Run("Storage Failure - Conditional Check Failed", func(t *testing.T) {
 		// Arrange
 		mockStorage := new(mocks.Storage)
-		mockStorage.On("CreateTransaction",
-			mock.AnythingOfType("context.Context"),
-			mock.AnythingOfType("*models.Transaction"),
-		).Return(nil, errors.New("conditional check failed"))
+		mockStorage.On("CreateTransaction", mock.Anything, mock.Anything).Return(nil, errors.New("conditional check failed"))
 
 		h := NewApiHandler(mockStorage)
 
-		body, _ := json.Marshal(newTx)
+		body, _ := json.Marshal(newApiTx)
 		req := httptest.NewRequest(http.MethodPost, "/transactions", bytes.NewReader(body))
 		rr := httptest.NewRecorder()
 
