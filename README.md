@@ -6,16 +6,30 @@ The system allows users to schedule a transfer of funds to another user at a fut
 
 ## System Design & Architecture
 
-This service is built using a modern, event-driven architecture on AWS, prioritizing correctness and resilience.
+This service is built using a modern, event-driven architecture on AWS. The main components are:
 
-- **Atomic & Idempotent Transactions**: The core challenge in a financial system is preventing race conditions (like double-spends or double-settlements). We solve this by using DynamoDB's `TransactWriteItems` for all critical state changes. 
-  - **Fund Reservation**: When a transaction is created, we atomically decrement the sender's balance and create the transaction record. This is protected by an optimistic lock (`version` number) on the user's wallet, preventing concurrent modifications.
-  - **Fund Settlement**: When a transaction is settled, we atomically update both users' wallets, create the immutable ledger entries, and update the transaction status from `APPROVED` to `COMPLETED`. This entire operation is conditioned on the transaction's status being `APPROVED`, making the settlement process idempotent and safe to retry.
-- **Asynchronous Processing**: Upon successful creation, transactions are published to an SQS queue. This decouples the API from the processing logic, ensuring the API remains fast and responsive. The current design uses SQS's `DelaySeconds` feature and is suitable for delays of up to 15 minutes.
-- **State Machine**: The `Transaction` object acts as a state machine, transitioning through statuses like `RESERVED`, `APPROVED`, and `COMPLETED`.
-- **Idempotency**: All critical operations are designed to be idempotent. For example, creating a transaction uses a conditional write to prevent duplicate records.
-- **Double-Entry Ledger**: The design includes an append-only `LedgerEntries` table to provide a complete and immutable audit trail of all financial movements.
-- **Self-Healing via Reconciliation**: A scheduled Lambda function periodically scans for transactions that have been in a `RESERVED` state for too long. This catches cases where the post-creation SQS message failed to send, making the system self-healing by re-enqueuing the stuck transaction for processing.
+- **API Service (`cmd/app`):** A Go-based HTTP server that exposes the primary API for creating and viewing transactions and wallets. It is responsible for initial request validation and authentication.
+
+- **DynamoDB Tables:** A set of three purpose-built tables form the core of our data layer:
+  - **`Wallets`**: Stores the current state of each user's wallet, including their available `balance`, `reserved` funds, and a `version` number for optimistic locking.
+  - **`Transactions`**: Acts as a state machine for each financial movement, tracking its status from `RESERVED` to `COMPLETED`.
+  - **`LedgerEntries`**: An append-only, immutable ledger that provides a permanent, double-entry audit trail of all fund movements.
+
+- **Asynchronous Processing Flow:** To ensure the API is responsive and resilient, transaction processing is handled asynchronously:
+  1. The API service reserves funds and publishes a transaction message to an **SQS Queue**.
+  2. A **Settlement Lambda (`cmd/settlement_lambda`)** consumes this message, performs the final settlement, and creates the ledger entries. This flow uses SQS's `DelaySeconds` feature for transactions scheduled in the future (up to 15 minutes).
+
+- **Reconciliation Lambda (`cmd/reconciliation_lambda`):** A scheduled Lambda that runs periodically (e.g., every 20 minutes) to find and re-enqueue transactions that may have become "stuck" in a `RESERVED` state due to transient failures. This makes the system self-healing.
+
+## Consistency & Idempotency
+
+Ensuring financial correctness in a distributed system is the primary challenge. We address this with the following strategies:
+
+- **Atomic Operations with `TransactWriteItems`:** All critical state changes are performed inside a single, atomic `TransactWriteItems` call. This guarantees that an operation (like reserving funds or settling a transaction) either completely succeeds or completely fails, leaving the system in a consistent state. There are no partial updates.
+
+- **Race Condition Prevention via Optimistic Locking:** To prevent double-spends, all wallet updates are protected by a `version` number. A transaction will only succeed if the wallet's `version` has not changed since it was read, preventing two concurrent operations from corrupting the balance.
+
+- **Idempotent Settlement:** The final settlement operation is designed to be idempotent by including a condition check that the transaction's status must be `APPROVED`. This means that even if the same settlement message is processed multiple times (a guarantee in distributed systems), the funds will only be moved once. Subsequent attempts will fail safely, preventing double-payments.
 
 ## Getting Started
 

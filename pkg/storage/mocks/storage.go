@@ -5,8 +5,7 @@ package mocks
 import (
 	context "context"
 
-	api "github.com/chris/delayed-wallet-transactions/pkg/api"
-
+	models "github.com/chris/delayed-wallet-transactions/pkg/models"
 	mock "github.com/stretchr/testify/mock"
 
 	time "time"
@@ -20,27 +19,27 @@ type Storage struct {
 }
 
 // CreateTransaction provides a mock function with given fields: ctx, newTx
-func (_m *Storage) CreateTransaction(ctx context.Context, newTx api.NewTransaction) (*api.Transaction, error) {
+func (_m *Storage) CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Transaction, error) {
 	ret := _m.Called(ctx, newTx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateTransaction")
 	}
 
-	var r0 *api.Transaction
+	var r0 *models.Transaction
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, api.NewTransaction) (*api.Transaction, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) (*models.Transaction, error)); ok {
 		return rf(ctx, newTx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, api.NewTransaction) *api.Transaction); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) *models.Transaction); ok {
 		r0 = rf(ctx, newTx)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.Transaction)
+			r0 = ret.Get(0).(*models.Transaction)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, api.NewTransaction) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *models.Transaction) error); ok {
 		r1 = rf(ctx, newTx)
 	} else {
 		r1 = ret.Error(1)
@@ -50,23 +49,23 @@ func (_m *Storage) CreateTransaction(ctx context.Context, newTx api.NewTransacti
 }
 
 // GetStuckTransactions provides a mock function with given fields: ctx, maxAge
-func (_m *Storage) GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]api.Transaction, error) {
+func (_m *Storage) GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]models.Transaction, error) {
 	ret := _m.Called(ctx, maxAge)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetStuckTransactions")
 	}
 
-	var r0 []api.Transaction
+	var r0 []models.Transaction
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, time.Duration) ([]api.Transaction, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, time.Duration) ([]models.Transaction, error)); ok {
 		return rf(ctx, maxAge)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, time.Duration) []api.Transaction); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, time.Duration) []models.Transaction); ok {
 		r0 = rf(ctx, maxAge)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]api.Transaction)
+			r0 = ret.Get(0).([]models.Transaction)
 		}
 	}
 
@@ -80,23 +79,23 @@ func (_m *Storage) GetStuckTransactions(ctx context.Context, maxAge time.Duratio
 }
 
 // GetTransaction provides a mock function with given fields: ctx, txID
-func (_m *Storage) GetTransaction(ctx context.Context, txID uuid.UUID) (*api.Transaction, error) {
+func (_m *Storage) GetTransaction(ctx context.Context, txID uuid.UUID) (*models.Transaction, error) {
 	ret := _m.Called(ctx, txID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetTransaction")
 	}
 
-	var r0 *api.Transaction
+	var r0 *models.Transaction
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*api.Transaction, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*models.Transaction, error)); ok {
 		return rf(ctx, txID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) *api.Transaction); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) *models.Transaction); ok {
 		r0 = rf(ctx, txID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.Transaction)
+			r0 = ret.Get(0).(*models.Transaction)
 		}
 	}
 
@@ -110,23 +109,23 @@ func (_m *Storage) GetTransaction(ctx context.Context, txID uuid.UUID) (*api.Tra
 }
 
 // GetWallet provides a mock function with given fields: ctx, userID
-func (_m *Storage) GetWallet(ctx context.Context, userID string) (*api.Wallet, error) {
+func (_m *Storage) GetWallet(ctx context.Context, userID string) (*models.Wallet, error) {
 	ret := _m.Called(ctx, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetWallet")
 	}
 
-	var r0 *api.Wallet
+	var r0 *models.Wallet
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*api.Wallet, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.Wallet, error)); ok {
 		return rf(ctx, userID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *api.Wallet); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.Wallet); ok {
 		r0 = rf(ctx, userID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.Wallet)
+			r0 = ret.Get(0).(*models.Wallet)
 		}
 	}
 
@@ -140,7 +139,7 @@ func (_m *Storage) GetWallet(ctx context.Context, userID string) (*api.Wallet, e
 }
 
 // SettleTransaction provides a mock function with given fields: ctx, tx
-func (_m *Storage) SettleTransaction(ctx context.Context, tx *api.Transaction) error {
+func (_m *Storage) SettleTransaction(ctx context.Context, tx *models.Transaction) error {
 	ret := _m.Called(ctx, tx)
 
 	if len(ret) == 0 {
@@ -148,7 +147,7 @@ func (_m *Storage) SettleTransaction(ctx context.Context, tx *api.Transaction) e
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.Transaction) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) error); ok {
 		r0 = rf(ctx, tx)
 	} else {
 		r0 = ret.Error(0)

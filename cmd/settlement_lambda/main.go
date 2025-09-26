@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/chris/delayed-wallet-transactions/pkg/api"
+	"github.com/chris/delayed-wallet-transactions/pkg/models"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 	"github.com/joho/godotenv"
 )
@@ -48,7 +48,7 @@ func HandleRequest(ctx context.Context, sqsEvent events.SQSEvent) error {
 	for _, message := range sqsEvent.Records {
 		log.Printf("Processing message %s", message.MessageId)
 
-		var tx api.Transaction
+		var tx models.Transaction
 		if err := json.Unmarshal([]byte(message.Body), &tx); err != nil {
 			log.Printf("ERROR: failed to unmarshal transaction from SQS message %s: %v", message.MessageId, err)
 			// Returning an error will cause SQS to retry the message, which is appropriate here.

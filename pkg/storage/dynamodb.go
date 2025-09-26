@@ -11,7 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/chris/delayed-wallet-transactions/pkg/api"
+	"github.com/chris/delayed-wallet-transactions/pkg/mapping"
+	"github.com/chris/delayed-wallet-transactions/pkg/models"
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -41,32 +42,19 @@ func NewDynamoDBStore(client *dynamodb.Client, scheduler scheduler.Scheduler, tr
 var _ Storage = (*DynamoDBStore)(nil)
 
 // CreateTransaction atomically reserves funds from the sender's wallet and creates a new transaction record.
-func (s *DynamoDBStore) CreateTransaction(ctx context.Context, newTx api.NewTransaction) (*api.Transaction, error) {
+func (s *DynamoDBStore) CreateTransaction(ctx context.Context, tx *models.Transaction) (*models.Transaction, error) {
 	// 1. Get the current state of the sender's wallet.
-	senderWallet, err := s.GetWallet(ctx, newTx.FromUserId)
+	senderWallet, err := s.GetWallet(ctx, tx.FromUserId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sender's wallet: %w", err)
 	}
 
-	// 2. Generate a new UUID for the transaction.
-	id, err := uuid.NewRandom()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate transaction ID: %w", err)
-	}
-
-	// 3. Create the full transaction object.
+	// 2. Complete the transaction object with server-side details.
 	now := time.Now()
-	tx := &api.Transaction{
-		Id:          openapi_types.UUID(id),
-		FromUserId:  newTx.FromUserId,
-		ToUserId:    newTx.ToUserId,
-		Amount:      newTx.Amount,
-		Currency:    newTx.Currency,
-		Status:      api.RESERVED,
-		ScheduledAt: newTx.ScheduledAt,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
+	tx.Id = openapi_types.UUID(uuid.New())
+	tx.Status = models.RESERVED
+	tx.CreatedAt = now
+	tx.UpdatedAt = now
 
 	// Marshal the transaction for the Put operation.
 	txAV, err := attributevalue.MarshalMap(tx)
@@ -75,7 +63,7 @@ func (s *DynamoDBStore) CreateTransaction(ctx context.Context, newTx api.NewTran
 	}
 
 	// Marshal the amount for the wallet update.
-	amountAV, err := attributevalue.Marshal(newTx.Amount)
+	amountAV, err := attributevalue.Marshal(tx.Amount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal amount: %w", err)
 	}
@@ -88,7 +76,7 @@ func (s *DynamoDBStore) CreateTransaction(ctx context.Context, newTx api.NewTran
 				Update: &types.Update{
 					TableName: aws.String(s.WalletsTableName),
 					Key: map[string]types.AttributeValue{
-						"user_id": &types.AttributeValueMemberS{Value: newTx.FromUserId},
+						"user_id": &types.AttributeValueMemberS{Value: tx.FromUserId},
 					},
 					UpdateExpression:    aws.String("SET balance = balance - :amount, reserved = reserved + :amount, version = version + :inc"),
 					ConditionExpression: aws.String("balance >= :amount AND version = :version"),
@@ -118,8 +106,6 @@ func (s *DynamoDBStore) CreateTransaction(ctx context.Context, newTx api.NewTran
 		if errors.As(err, &txc) {
 			for _, reason := range txc.CancellationReasons {
 				if *reason.Code == "ConditionalCheckFailed" {
-					// This could be due to insufficient funds, a version mismatch (race condition), or the transaction already existing.
-					// A more robust implementation would inspect the reason message or the item index to provide a more specific error.
 					return nil, fmt.Errorf("transaction failed: conditional check failed (insufficient funds, race condition, or duplicate transaction)")
 				}
 			}
@@ -128,43 +114,39 @@ func (s *DynamoDBStore) CreateTransaction(ctx context.Context, newTx api.NewTran
 	}
 
 	// 6. If the database transaction was successful, enqueue it for processing.
-	if err := s.Scheduler.ScheduleTransaction(ctx, tx); err != nil {
-		// If this fails, the transaction is in the DB but not scheduled.
-		// A scavenger service would be needed to find and re-enqueue these.
-		// For now, we will log this critical error.
-		log.Printf("CRITICAL: transaction %s created but failed to enqueue: %v", tx.Id, err)
+	if s.Scheduler != nil {
+		// We need to map the domain model back to the API model for the scheduler.
+		// In a real system, the scheduler might also work with domain models.
+		if err := s.Scheduler.ScheduleTransaction(ctx, mapping.ToApiTransaction(tx)); err != nil {
+			log.Printf("CRITICAL: transaction %s created but failed to enqueue: %v", tx.Id, err)
+		}
 	}
 
 	return tx, nil
 }
 
 // GetTransaction retrieves a transaction from DynamoDB by its ID.
-func (s *DynamoDBStore) GetTransaction(ctx context.Context, txID openapi_types.UUID) (*api.Transaction, error) {
-	// Create the key for the GetItem request.
+func (s *DynamoDBStore) GetTransaction(ctx context.Context, txID openapi_types.UUID) (*models.Transaction, error) {
 	key, err := attributevalue.MarshalMap(map[string]string{"id": txID.String()})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal transaction ID: %w", err)
 	}
 
-	// Create the GetItem input.
 	input := &dynamodb.GetItemInput{
 		TableName: aws.String(s.TransactionsTableName),
 		Key:       key,
 	}
 
-	// Execute the GetItem request.
 	result, err := s.Client.GetItem(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction from DynamoDB: %w", err)
 	}
 
-	// Check if the item was found.
 	if result.Item == nil {
 		return nil, fmt.Errorf("transaction with ID %s not found", txID.String())
 	}
 
-	// Unmarshal the result into a Transaction struct.
-	var tx api.Transaction
+	var tx models.Transaction
 	if err := attributevalue.UnmarshalMap(result.Item, &tx); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal transaction: %w", err)
 	}
@@ -173,32 +155,27 @@ func (s *DynamoDBStore) GetTransaction(ctx context.Context, txID openapi_types.U
 }
 
 // GetWallet retrieves a user's wallet from DynamoDB by their user ID.
-func (s *DynamoDBStore) GetWallet(ctx context.Context, userID string) (*api.Wallet, error) {
-	// Create the key for the GetItem request.
+func (s *DynamoDBStore) GetWallet(ctx context.Context, userID string) (*models.Wallet, error) {
 	key, err := attributevalue.MarshalMap(map[string]string{"user_id": userID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal wallet user ID: %w", err)
 	}
 
-	// Create the GetItem input.
 	input := &dynamodb.GetItemInput{
 		TableName: aws.String(s.WalletsTableName),
 		Key:       key,
 	}
 
-	// Execute the GetItem request.
 	result, err := s.Client.GetItem(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get wallet from DynamoDB: %w", err)
 	}
 
-	// Check if the item was found.
 	if result.Item == nil {
 		return nil, fmt.Errorf("wallet for user ID %s not found", userID)
 	}
 
-	// Unmarshal the result into a Wallet struct.
-	var wallet api.Wallet
+	var wallet models.Wallet
 	if err := attributevalue.UnmarshalMap(result.Item, &wallet); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal wallet: %w", err)
 	}
@@ -206,20 +183,8 @@ func (s *DynamoDBStore) GetWallet(ctx context.Context, userID string) (*api.Wall
 	return &wallet, nil
 }
 
-// LedgerEntry represents a single entry in the double-entry ledger.
-// TODO: This should be moved to the api package and defined in the spec.
-type LedgerEntry struct {
-	TransactionID string    `json:"transaction_id"`
-	EntryID       string    `json:"entry_id"`
-	AccountID     string    `json:"account_id"`
-	Debit         float64   `json:"debit,omitempty"`
-	Credit        float64   `json:"credit,omitempty"`
-	Description   string    `json:"description"`
-	Timestamp     time.Time `json:"timestamp"`
-}
-
 // SettleTransaction performs the final atomic settlement of a transaction.
-func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *api.Transaction) error {
+func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *models.Transaction) error {
 	// 1. Get the current state of both wallets for optimistic locking.
 	senderWallet, err := s.GetWallet(ctx, tx.FromUserId)
 	if err != nil {
@@ -238,7 +203,7 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *api.Transacti
 	}
 
 	// 3. Prepare ledger entries.
-	debitEntry := LedgerEntry{
+	debitEntry := models.LedgerEntry{
 		TransactionID: tx.Id.String(),
 		EntryID:       uuid.New().String(),
 		AccountID:     tx.FromUserId,
@@ -246,7 +211,7 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *api.Transacti
 		Description:   fmt.Sprintf("Settlement for transaction %s", tx.Id.String()),
 		Timestamp:     now,
 	}
-	creditEntry := LedgerEntry{
+	creditEntry := models.LedgerEntry{
 		TransactionID: tx.Id.String(),
 		EntryID:       uuid.New().String(),
 		AccountID:     tx.ToUserId,
@@ -264,11 +229,11 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *api.Transacti
 	}
 
 	// Prepare attribute values for the transaction status update.
-	completedStatusAV, err := attributevalue.Marshal(api.COMPLETED)
+	completedStatusAV, err := attributevalue.Marshal(models.COMPLETED)
 	if err != nil {
 		return fmt.Errorf("failed to marshal completed status: %w", err)
 	}
-	approvedStatusAV, err := attributevalue.Marshal(api.APPROVED)
+	approvedStatusAV, err := attributevalue.Marshal(models.APPROVED)
 	if err != nil {
 		return fmt.Errorf("failed to marshal approved status: %w", err)
 	}
@@ -357,7 +322,7 @@ func (s *DynamoDBStore) SettleTransaction(ctx context.Context, tx *api.Transacti
 const stuckTransactionGSI = "status-created_at-index"
 
 // GetStuckTransactions retrieves transactions that are in a 'RESERVED' state for longer than the specified duration.
-func (s *DynamoDBStore) GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]api.Transaction, error) {
+func (s *DynamoDBStore) GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]models.Transaction, error) {
 	// Calculate the cutoff time.
 	cutoffTime := time.Now().Add(-maxAge)
 	cutoffTimeStr, err := cutoffTime.MarshalText()
@@ -375,7 +340,7 @@ func (s *DynamoDBStore) GetStuckTransactions(ctx context.Context, maxAge time.Du
 			"#status": "status",
 		},
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":status": &types.AttributeValueMemberS{Value: string(api.RESERVED)},
+			":status": &types.AttributeValueMemberS{Value: string(models.RESERVED)},
 			":cutoff": &types.AttributeValueMemberS{Value: string(cutoffTimeStr)},
 		},
 	}
@@ -387,7 +352,7 @@ func (s *DynamoDBStore) GetStuckTransactions(ctx context.Context, maxAge time.Du
 	}
 
 	// Unmarshal the results.
-	var transactions []api.Transaction
+	var transactions []models.Transaction
 	if err := attributevalue.UnmarshalListOfMaps(result.Items, &transactions); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal stuck transactions: %w", err)
 	}

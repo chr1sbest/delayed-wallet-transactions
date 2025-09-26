@@ -4,25 +4,24 @@ import (
 	"context"
 	"time"
 
-	"github.com/chris/delayed-wallet-transactions/pkg/api"
+	"github.com/chris/delayed-wallet-transactions/pkg/models"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Storage defines the interface for interacting with the transaction data layer.
 type Storage interface {
 	// CreateTransaction creates a new transaction and stores it.
-	// This is where the "reservation" of funds will happen.
-	CreateTransaction(ctx context.Context, newTx api.NewTransaction) (*api.Transaction, error)
+	CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Transaction, error)
 
 	// GetTransaction retrieves a transaction by its ID.
-	GetTransaction(ctx context.Context, txID openapi_types.UUID) (*api.Transaction, error)
+	GetTransaction(ctx context.Context, txID openapi_types.UUID) (*models.Transaction, error)
 
 	// GetWallet retrieves a user's wallet by their user ID.
-	GetWallet(ctx context.Context, userID string) (*api.Wallet, error)
+	GetWallet(ctx context.Context, userID string) (*models.Wallet, error)
 
 	// SettleTransaction performs the final atomic settlement of a transaction.
-	SettleTransaction(ctx context.Context, tx *api.Transaction) error
+	SettleTransaction(ctx context.Context, tx *models.Transaction) error
 
 	// GetStuckTransactions retrieves transactions that are in a 'RESERVED' state for longer than the specified duration.
-	GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]api.Transaction, error)
+	GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]models.Transaction, error)
 }

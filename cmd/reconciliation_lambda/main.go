@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/chris/delayed-wallet-transactions/pkg/mapping"
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 	"github.com/joho/godotenv"
@@ -64,7 +65,8 @@ func HandleRequest(ctx context.Context) error {
 	log.Printf("Found %d stuck transactions. Re-enqueuing them...", len(stuckTxs))
 
 	for _, tx := range stuckTxs {
-		if err := sqsScheduler.ScheduleTransaction(ctx, &tx); err != nil {
+		apiTx := mapping.ToApiTransaction(&tx)
+		if err := sqsScheduler.ScheduleTransaction(ctx, apiTx); err != nil {
 			log.Printf("ERROR: failed to re-enqueue transaction %s: %v", tx.Id, err)
 			// Continue to the next transaction, don't let one failure stop the whole batch.
 			continue
