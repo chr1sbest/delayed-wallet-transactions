@@ -14,61 +14,76 @@ import (
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
+	"github.com/swaggest/swgui/v5emb"
 )
 
 func main() {
-	// Load environment variables from .env file
+	// Load environment variables from .env file (useful for local testing).
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("No .env file found, using environment variables")
+		log.Println("No .env file found, relying on environment variables.")
 	}
 
-	// AWS Session
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+	// Get environment variables.
+	transactionsTable := getEnv("DYNAMODB_TRANSACTIONS_TABLE_NAME", "Transactions")
+	walletsTable := getEnv("DYNAMODB_WALLETS_TABLE_NAME", "Wallets")
+	ledgerTable := getEnv("DYNAMODB_LEDGER_TABLE_NAME", "LedgerEntries")
+	sqsQueueURL := getEnv("SQS_QUEUE_URL", "")
+
+	// Load the AWS SDK configuration, specifying the 'backendbest' profile.
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile("backendbest"))
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
 
+	// Create clients.
 	dbClient := dynamodb.NewFromConfig(cfg)
-	transactionsTable := os.Getenv("DYNAMODB_TRANSACTIONS_TABLE_NAME")
-	walletsTable := os.Getenv("DYNAMODB_WALLETS_TABLE_NAME")
-	ledgerTable := os.Getenv("DYNAMODB_LEDGER_TABLE_NAME")
-
-	if transactionsTable == "" || walletsTable == "" || ledgerTable == "" {
-		log.Fatal("One or more DynamoDB table name environment variables are not set")
-	}
-
-	// SQS Client and Scheduler
 	sqsClient := sqs.NewFromConfig(cfg)
-	sqsQueueURL := os.Getenv("SQS_QUEUE_URL")
-	if sqsQueueURL == "" {
-		log.Fatal("SQS_QUEUE_URL environment variable not set")
-	}
+
+	// Initialize components.
 	sqsScheduler := scheduler.NewSQSScheduler(sqsClient, sqsQueueURL)
-
-	// Create our storage implementation
 	store := storage.NewDynamoDBStore(dbClient, sqsScheduler, transactionsTable, walletsTable, ledgerTable)
+	apiHandler := handlers.NewApiHandler(store)
 
-	// Create our handler
-	handler := handlers.NewApiHandler(store)
+	// Use oapi-codegen's generated handler to mount the API routes.
+	apiRouter := api.Handler(apiHandler)
 
-	// Create a new Chi router
-	router := chi.NewRouter()
+	// Create a new Chi router and add middleware.
+	chiRouter := chi.NewRouter()
+	chiRouter.Use(middleware.Logger)
+	chiRouter.Use(middleware.Recoverer)
+	chiRouter.Mount("/", apiRouter)
 
-	// Use the generated function to mount our handler on the router
-	api.HandlerFromMux(handler, router)
-
-	port := os.Getenv("HTTP_PORT")
-	if port == "" {
-		port = "8080" // Default port if not specified
+	// --- Add Swagger UI endpoint --- //
+	spec, err := os.ReadFile("api/spec.yaml")
+	if err != nil {
+		log.Fatalf("Failed to read OpenAPI spec: %v", err)
 	}
 
-	log.Printf("Starting server on port %s", port)
+	// Create the Swagger UI handler.
+	swguiHandler := v5emb.New("Delayed Wallet API", "/docs/openapi.yaml", "/docs")
+	chiRouter.Mount("/docs", swguiHandler)
 
-	// Start the server
-	err = http.ListenAndServe(":"+port, router)
-	if err != nil {
+	// Add an endpoint to serve the raw spec file.
+	chiRouter.Get("/docs/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/x-yaml")
+		w.Write(spec)
+	})
+
+	// Start the server.
+	log.Println("Server starting on port 8080...")
+	log.Println("API documentation available at http://localhost:8080/docs")
+	if err := http.ListenAndServe(":8080", chiRouter); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+// getEnv reads an environment variable or returns a default value.
+func getEnv(key, fallback string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return fallback
 }
