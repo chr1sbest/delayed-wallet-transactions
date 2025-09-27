@@ -118,6 +118,7 @@ Resources:
           DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
           DYNAMODB_LEDGER_TABLE_NAME: !Ref LedgerTable
           SQS_QUEUE_URL: !Ref TransactionQueue
+          WEBSOCKET_API_ENDPOINT: !Sub 'https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/ws'
 
   # WebSocket API Gateway
   WebSocketApi:

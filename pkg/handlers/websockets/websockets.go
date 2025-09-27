@@ -2,49 +2,44 @@ package websockets
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/apigatewaymanagementapi"
-	apigwtypes "github.com/aws/aws-sdk-go-v2/service/apigatewaymanagementapi/types"
-	"github.com/chris/delayed-wallet-transactions/pkg/storage"
+	"github.com/chris/delayed-wallet-transactions/pkg/websockets"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
-// WebsocketHandler handles WebSocket connections and messages.
-type WebsocketHandler struct {
-	store storage.WebSocketManager
+// Handler handles WebSocket connections.
+type Handler struct {
+	connManager websockets.ConnectionManager
 }
 
-// NewWebsocketHandler creates a new WebsocketHandler.
-func NewWebsocketHandler(store storage.WebSocketManager) *WebsocketHandler {
-	return &WebsocketHandler{
-		store: store,
+// NewHandler creates a new Handler.
+func NewHandler(connManager websockets.ConnectionManager) *Handler {
+	return &Handler{
+		connManager: connManager,
 	}
 }
 
 // HandleConnect handles new client connections.
-func (h *WebsocketHandler) HandleConnect(ctx context.Context, request events.APIGatewayWebsocketProxyRequest) (events.APIGatewayProxyResponse, error) {
-	slog.Info("Entering HandleConnect", "connectionId", request.RequestContext.ConnectionID)
+func (h *Handler) HandleConnect(ctx context.Context, request events.APIGatewayWebsocketProxyRequest) (events.APIGatewayProxyResponse, error) {
+	slog.Info("Client connected", "connectionId", request.RequestContext.ConnectionID)
 
-	slog.Info("Attempting to add connection to store", "connectionId", request.RequestContext.ConnectionID)
-	if err := h.store.AddConnection(ctx, request.RequestContext.ConnectionID); err != nil {
-		slog.Error("failed to save connection ID", "connectionId", request.RequestContext.ConnectionID, "error", err)
+	if err := h.connManager.AddConnection(ctx, request.RequestContext.ConnectionID); err != nil {
+		slog.Error("failed to save connection ID", "error", err)
 		return events.APIGatewayProxyResponse{StatusCode: 500}, err
 	}
-	slog.Info("Successfully added connection to store", "connectionId", request.RequestContext.ConnectionID)
 
 	return events.APIGatewayProxyResponse{StatusCode: 200}, nil
 }
 
 // HandleDisconnect handles client disconnections.
-func (h *WebsocketHandler) HandleDisconnect(ctx context.Context, request events.APIGatewayWebsocketProxyRequest) (events.APIGatewayProxyResponse, error) {
+func (h *Handler) HandleDisconnect(ctx context.Context, request events.APIGatewayWebsocketProxyRequest) (events.APIGatewayProxyResponse, error) {
 	slog.Info("Client disconnected", "connectionId", request.RequestContext.ConnectionID)
 
-	if err := h.store.RemoveConnection(ctx, request.RequestContext.ConnectionID); err != nil {
+	if err := h.connManager.RemoveConnection(ctx, request.RequestContext.ConnectionID); err != nil {
 		slog.Error("failed to delete connection ID", "error", err)
 		return events.APIGatewayProxyResponse{StatusCode: 500}, err
 	}
@@ -52,52 +47,56 @@ func (h *WebsocketHandler) HandleDisconnect(ctx context.Context, request events.
 	return events.APIGatewayProxyResponse{StatusCode: 200}, nil
 }
 
-// HandleDefault handles messages sent from a client and broadcasts them.
-func (h *WebsocketHandler) HandleDefault(ctx context.Context, request events.APIGatewayWebsocketProxyRequest) (events.APIGatewayProxyResponse, error) {
+// HandleDefault handles messages sent from a client.
+func (h *Handler) HandleDefault(ctx context.Context, request events.APIGatewayWebsocketProxyRequest) (events.APIGatewayProxyResponse, error) {
 	slog.Info("Received message", "connectionId", request.RequestContext.ConnectionID, "body", request.Body)
-
-	if err := h.Broadcast(ctx, request, []byte(request.Body)); err != nil {
-		slog.Error("failed to broadcast message", "error", err)
-		return events.APIGatewayProxyResponse{StatusCode: 500}, err
-	}
-
+	// We don't expect clients to send messages, but we log them just in case.
 	return events.APIGatewayProxyResponse{StatusCode: 200}, nil
 }
 
-// Broadcast sends a message to all connected clients.
-func (h *WebsocketHandler) Broadcast(ctx context.Context, request events.APIGatewayWebsocketProxyRequest, message []byte) error {
-	connectionIDs, err := h.store.GetAllConnections(ctx)
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		// Allow all connections by default for local development.
+		return true
+	},
+}
+
+// ServeHTTP handles WebSocket requests for the local development server.
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		return fmt.Errorf("failed to get all connections: %w", err)
+		slog.Error("failed to upgrade connection", "error", err)
+		return
+	}
+	defer conn.Close()
+
+	// Generate a unique connection ID for local connections.
+	connectionID := uuid.New().String()
+	slog.Info("Client connected locally", "connectionId", connectionID)
+
+	ctx := r.Context()
+	if err := h.connManager.AddConnection(ctx, connectionID); err != nil {
+		slog.Error("failed to save local connection ID", "error", err)
+		return
 	}
 
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to load aws config: %w", err)
-	}
-	endpoint := fmt.Sprintf("https://%s/%s", request.RequestContext.DomainName, request.RequestContext.Stage)
-	apiGwClient := apigatewaymanagementapi.NewFromConfig(cfg, func(o *apigatewaymanagementapi.Options) {
-		o.BaseEndpoint = aws.String(endpoint)
-	})
+	// When the function returns (i.e., the client disconnects), remove the connection.
+	defer func() {
+		slog.Info("Client disconnected locally", "connectionId", connectionID)
+		if err := h.connManager.RemoveConnection(ctx, connectionID); err != nil {
+			slog.Error("failed to delete local connection ID", "error", err)
+		}
+	}()
 
-	for _, connectionID := range connectionIDs {
-		_, err := apiGwClient.PostToConnection(ctx, &apigatewaymanagementapi.PostToConnectionInput{
-			ConnectionId: aws.String(connectionID),
-			Data:         message,
-		})
-
-		if err != nil {
-			var goneErr *apigwtypes.GoneException
-			if errors.As(err, &goneErr) {
-				slog.Info("stale connection found, deleting", "connectionId", connectionID)
-				if err := h.store.RemoveConnection(ctx, connectionID); err != nil {
-					slog.Error("failed to delete stale connection", "error", err)
-				}
-			} else {
-				slog.Error("failed to post to connection", "connectionId", connectionID, "error", err)
+	// Keep the connection alive, waiting for the client to disconnect.
+	// The server doesn't process incoming messages in this implementation,
+	// but this loop is necessary to detect when the client closes the connection.
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				slog.Error("unexpected close error", "error", err)
 			}
+			break // Exit the loop on any error, which signifies a disconnection.
 		}
 	}
-
-	return nil
 }

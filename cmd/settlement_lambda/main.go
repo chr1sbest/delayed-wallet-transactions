@@ -11,20 +11,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
-	"github.com/chris/delayed-wallet-transactions/pkg/storage"
-	dydbstore "github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb"
-	"github.com/joho/godotenv"
+	dynamo_store "github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb"
+	"github.com/chris/delayed-wallet-transactions/pkg/websockets"
 )
 
-var store storage.SettlementStore
+var store *dynamo_store.Store
+var publisher websockets.Publisher
 
 func init() {
-	// Load environment variables from .env file (useful for local testing).
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("No .env file found, using environment variables")
-	}
-
 	// Initialize dependencies once.
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
@@ -32,16 +26,12 @@ func init() {
 	}
 
 	dbClient := dynamodb.NewFromConfig(cfg)
-	transactionsTable := os.Getenv("DYNAMODB_TRANSACTIONS_TABLE_NAME")
-	walletsTable := os.Getenv("DYNAMODB_WALLETS_TABLE_NAME")
-	ledgerTable := os.Getenv("DYNAMODB_LEDGER_TABLE_NAME")
+	store = dynamo_store.New(dbClient, os.Getenv("DYNAMODB_TRANSACTIONS_TABLE_NAME"), os.Getenv("DYNAMODB_WALLETS_TABLE_NAME"), os.Getenv("DYNAMODB_LEDGER_TABLE_NAME"), os.Getenv("DYNAMODB_WEBSOCKET_CONNECTIONS_TABLE_NAME"))
 
-	if transactionsTable == "" || walletsTable == "" || ledgerTable == "" {
-		log.Fatal("One or more DynamoDB table name environment variables are not set")
+	publisher, err = websockets.NewPublisher(store, store, os.Getenv("WEBSOCKET_API_ENDPOINT"))
+	if err != nil {
+		log.Fatalf("failed to create websocket publisher: %v", err)
 	}
-
-	// The settlement lambda doesn't need a scheduler, so we pass nil.
-	store = dydbstore.New(dbClient, transactionsTable, walletsTable, ledgerTable, "")
 }
 
 // HandleRequest processes SQS messages and settles the transactions.
@@ -52,21 +42,57 @@ func HandleRequest(ctx context.Context, sqsEvent events.SQSEvent) error {
 		var tx models.Transaction
 		if err := json.Unmarshal([]byte(message.Body), &tx); err != nil {
 			log.Printf("ERROR: failed to unmarshal transaction from SQS message %s: %v", message.MessageId, err)
-			// Returning an error will cause SQS to retry the message, which is appropriate here.
-			return err
+			continue
 		}
-
-		log.Printf("Attempting to settle transaction %s", tx.Id)
 
 		if err := store.SettleTransaction(ctx, &tx); err != nil {
-			log.Printf("ERROR: failed to settle transaction %s: %v", tx.Id, err)
-			// In a production system, persistent failures would be sent to a DLQ.
-			return err
+			log.Printf("error settling transaction: %v", err)
+			continue
 		}
 
-		log.Printf("Successfully settled transaction %s", tx.Id)
-	}
+		// Publish wallet update messages
+		go func() {
+			// Get the latest wallet balances.
+			fromWallet, err := store.GetWallet(context.Background(), tx.FromUserId)
+			if err != nil {
+				log.Printf("ERROR: failed to get wallet for websocket message: %v", err)
+				return
+			}
+			toWallet, err := store.GetWallet(context.Background(), tx.ToUserId)
+			if err != nil {
+				log.Printf("ERROR: failed to get wallet for websocket message: %v", err)
+				return
+			}
 
+			// Message for the sender
+			fromMsg := websockets.Message{
+				Type: websockets.MessageTypeWalletUpdate,
+				Payload: websockets.WalletUpdatePayload{
+					UserID:        tx.FromUserId,
+					TransactionID: tx.Id,
+					Change:        -tx.Amount,
+					NewBalance:    fromWallet.Balance,
+				},
+			}
+			if err := publisher.Publish(context.Background(), fromMsg); err != nil {
+				log.Printf("ERROR: failed to publish websocket message: %v", err)
+			}
+
+			// Message for the recipient
+			toMsg := websockets.Message{
+				Type: websockets.MessageTypeWalletUpdate,
+				Payload: websockets.WalletUpdatePayload{
+					UserID:        tx.ToUserId,
+					TransactionID: tx.Id,
+					Change:        tx.Amount,
+					NewBalance:    toWallet.Balance,
+				},
+			}
+			if err := publisher.Publish(context.Background(), toMsg); err != nil {
+				log.Printf("ERROR: failed to publish websocket message: %v", err)
+			}
+		}()
+	}
 	return nil
 }
 

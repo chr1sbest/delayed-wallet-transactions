@@ -10,9 +10,10 @@ import (
 
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
-	"github.com/google/uuid"
 	scheduler_mocks "github.com/chris/delayed-wallet-transactions/pkg/scheduler/mocks"
 	storage_mocks "github.com/chris/delayed-wallet-transactions/pkg/storage/mocks"
+	"github.com/chris/delayed-wallet-transactions/pkg/websockets"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -20,9 +21,10 @@ import (
 func TestScheduleTransaction_Success(t *testing.T) {
 	t.Run("No Delay", func(t *testing.T) {
 		// 1. Setup
-		mockStorage := new(storage_mocks.Storage)
+		mockStorage := new(storage_mocks.ApiStore)
 		mockScheduler := new(scheduler_mocks.CronScheduler)
-		handler := NewTransactionsHandler(mockStorage, mockScheduler)
+		mockPublisher := new(websockets.NoOpPublisher)
+		handler := NewTransactionsHandler(mockStorage, mockScheduler, mockPublisher)
 
 		newTx := &api.NewTransaction{
 			FromUserId: "user1",
@@ -40,6 +42,7 @@ func TestScheduleTransaction_Success(t *testing.T) {
 
 		// 2. Mock expectations
 		mockStorage.On("CreateTransaction", mock.Anything, mock.AnythingOfType("*models.Transaction")).Return(createdTx, nil)
+		mockStorage.On("GetWallet", mock.Anything, "user1").Return(&models.Wallet{Balance: 1000}, nil)
 		mockScheduler.On("ScheduleTransaction", mock.Anything, mock.AnythingOfType("*api.Transaction"), time.Duration(0)).Return(nil)
 
 		// 3. Execute
@@ -57,9 +60,10 @@ func TestScheduleTransaction_Success(t *testing.T) {
 
 	t.Run("With Delay", func(t *testing.T) {
 		// 1. Setup
-		mockStorage := new(storage_mocks.Storage)
+		mockStorage := new(storage_mocks.ApiStore)
 		mockScheduler := new(scheduler_mocks.CronScheduler)
-		handler := NewTransactionsHandler(mockStorage, mockScheduler)
+		mockPublisher := new(websockets.NoOpPublisher)
+		handler := NewTransactionsHandler(mockStorage, mockScheduler, mockPublisher)
 
 		delay := int32(60)
 		newTx := &api.NewTransaction{
@@ -79,6 +83,7 @@ func TestScheduleTransaction_Success(t *testing.T) {
 
 		// 2. Mock expectations
 		mockStorage.On("CreateTransaction", mock.Anything, mock.AnythingOfType("*models.Transaction")).Return(createdTx, nil)
+		mockStorage.On("GetWallet", mock.Anything, "user1").Return(&models.Wallet{Balance: 1000}, nil)
 		mockScheduler.On("ScheduleTransaction", mock.Anything, mock.AnythingOfType("*api.Transaction"), time.Duration(delay)*time.Second).Return(nil)
 
 		// 3. Execute

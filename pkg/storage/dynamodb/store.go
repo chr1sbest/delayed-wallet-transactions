@@ -18,10 +18,10 @@ type DynamoDBAPI interface {
 
 // Store implements the Storage interface using AWS DynamoDB.
 type Store struct {
-	Client                DynamoDBAPI
-	TransactionsTableName string
-	WalletsTableName            string
-	LedgerTableName             string
+	Client                        DynamoDBAPI
+	TransactionsTableName         string
+	WalletsTableName              string
+	LedgerTableName               string
 	WebsocketConnectionsTableName string
 }
 

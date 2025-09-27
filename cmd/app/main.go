@@ -13,10 +13,11 @@ import (
 	chiadapter "github.com/awslabs/aws-lambda-go-api-proxy/chi"
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/handlers"
-	"github.com/chris/delayed-wallet-transactions/pkg/handlers/websockets"
+	ws "github.com/chris/delayed-wallet-transactions/pkg/handlers/websockets"
 	customMiddleware "github.com/chris/delayed-wallet-transactions/pkg/middleware"
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
 	dydbstore "github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb"
+	"github.com/chris/delayed-wallet-transactions/pkg/websockets"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
@@ -41,6 +42,7 @@ func main() {
 	ledgerTable := getEnv("DYNAMODB_LEDGER_TABLE_NAME", "LedgerEntries")
 	websocketConnectionsTable := getEnv("DYNAMODB_WEBSOCKET_CONNECTIONS_TABLE_NAME", "WebsocketConnections")
 	sqsQueueURL := getEnv("SQS_QUEUE_URL", "")
+	websocketAPIEndpoint := getEnv("WEBSOCKET_API_ENDPOINT", "")
 
 	// Load the AWS SDK configuration.
 	cfg, err := config.LoadDefaultConfig(context.TODO())
@@ -55,8 +57,12 @@ func main() {
 	// Initialize components.
 	store := dydbstore.New(dbClient, transactionsTable, walletsTable, ledgerTable, websocketConnectionsTable)
 	sqsScheduler := scheduler.NewSQSScheduler(sqsClient, sqsQueueURL)
-	apiHandler := handlers.NewApiHandler(store, sqsScheduler)
-	websocketHandler := websockets.NewWebsocketHandler(store)
+	publisher, err := websockets.NewPublisher(store, store, websocketAPIEndpoint)
+	if err != nil {
+		log.Fatalf("failed to create websocket publisher: %v", err)
+	}
+	apiHandler := handlers.NewApiHandler(store, sqsScheduler, publisher)
+	websocketHandler := ws.NewHandler(store)
 
 	// Use oapi-codegen's generated handler to mount the API routes.
 	apiRouter := api.Handler(apiHandler)
@@ -79,6 +85,9 @@ func main() {
 	chiRouter.Use(customMiddleware.NewStructuredLogger(logger))
 	chiRouter.Use(middleware.Recoverer)
 	chiRouter.Mount("/", apiRouter)
+
+	// --- Add WebSocket endpoint for local development ---
+	chiRouter.Get("/ws", websocketHandler.ServeHTTP)
 
 	// --- Add Swagger UI endpoint for local development --- //
 	// This will only work locally and will not be available in the deployed Lambda
@@ -108,7 +117,8 @@ func main() {
 		lambda.Start(NewCombinedHandler(chiRouter, websocketHandler))
 	} else {
 		// Otherwise, start a local HTTP server.
-		log.Println("Server starting on port 8080...")
+		log.Println("HTTP server starting on port 8080...")
+		log.Println("WebSocket server starting on port 8080...")
 		if err := http.ListenAndServe(":8080", chiRouter); err != nil {
 			log.Fatalf("Failed to start server: %v", err)
 		}
@@ -124,7 +134,7 @@ func getEnv(key, fallback string) string {
 }
 
 // CombinedHandler can handle both API Gateway (HTTP) and API Gateway v2 (WebSocket) events.
-func NewCombinedHandler(httpHandler chi.Router, wsHandler *websockets.WebsocketHandler) func(ctx context.Context, request json.RawMessage) (interface{}, error) {
+func NewCombinedHandler(httpHandler chi.Router, wsHandler *ws.Handler) func(ctx context.Context, request json.RawMessage) (interface{}, error) {
 	chiLambda := chiadapter.New(httpHandler.(*chi.Mux))
 
 	return func(ctx context.Context, request json.RawMessage) (interface{}, error) {

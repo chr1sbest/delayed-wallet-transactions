@@ -1,6 +1,7 @@
 package transactions
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,19 +11,21 @@ import (
 
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/mapping"
-	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
+	"github.com/chris/delayed-wallet-transactions/pkg/storage"
+	"github.com/chris/delayed-wallet-transactions/pkg/websockets"
 )
 
 // TransactionsHandler holds the dependencies for transaction-related handlers.
 type TransactionsHandler struct {
-	Store     storage.TransactionStore
+	Store     storage.ApiStore
 	Scheduler scheduler.CronScheduler
+	Publisher websockets.Publisher
 }
 
 // NewTransactionsHandler creates a new TransactionsHandler.
-func NewTransactionsHandler(store storage.TransactionStore, scheduler scheduler.CronScheduler) *TransactionsHandler {
-	return &TransactionsHandler{Store: store, Scheduler: scheduler}
+func NewTransactionsHandler(store storage.ApiStore, scheduler scheduler.CronScheduler, publisher websockets.Publisher) *TransactionsHandler {
+	return &TransactionsHandler{Store: store, Scheduler: scheduler, Publisher: publisher}
 }
 
 // ScheduleTransaction handles the logic for scheduling a new transaction.
@@ -57,6 +60,28 @@ func (h *TransactionsHandler) ScheduleTransaction(w http.ResponseWriter, r *http
 			log.Printf("CRITICAL: transaction %s created but failed to enqueue: %v", createdTx.Id, err)
 		}
 	}
+
+	go func() {
+		// Get the latest wallet balance.
+		wallet, err := h.Store.GetWallet(context.Background(), createdTx.FromUserId)
+		if err != nil {
+			log.Printf("ERROR: failed to get wallet for websocket message: %v", err)
+			return
+		}
+
+		msg := websockets.Message{
+			Type: websockets.MessageTypeWalletUpdate,
+			Payload: websockets.WalletUpdatePayload{
+				UserID:        createdTx.FromUserId,
+				TransactionID: createdTx.Id,
+				Change:        -createdTx.Amount, // Negative because it's a deduction
+				NewBalance:    wallet.Balance,
+			},
+		}
+		if err := h.Publisher.Publish(context.Background(), msg); err != nil {
+			log.Printf("ERROR: failed to publish websocket message: %v", err)
+		}
+	}()
 
 	// Map the domain model response back to the API model and respond.
 	apiTx := mapping.ToApiTransaction(createdTx)
