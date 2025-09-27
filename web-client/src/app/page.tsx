@@ -8,8 +8,6 @@ import { NewTransactionDialog } from '@/components/wallets/NewTransactionDialog'
 import { WalletList } from '@/components/wallets/WalletList';
 import { WebSocketHandler } from '@/components/wallets/WebSocketHandler';
 
-// Configure the API client base URL
-OpenAPI.BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 export default function HomePage() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
