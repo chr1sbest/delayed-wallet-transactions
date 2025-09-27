@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb/mocks"
 	"github.com/google/uuid"
@@ -36,9 +37,10 @@ func TestSettleTransaction(t *testing.T) {
 		// Mock TransactWriteItems call for settlement
 		mockClient.On("TransactWriteItems", mock.Anything, mock.AnythingOfType("*dynamodb.TransactWriteItemsInput")).Return(&dynamodb.TransactWriteItemsOutput{}, nil).Once()
 
-		err := store.SettleTransaction(context.Background(), tx)
+		settled, err := store.SettleTransaction(context.Background(), tx)
 
 		assert.NoError(t, err)
+		assert.True(t, settled)
 		mockClient.AssertExpectations(t)
 	})
 
@@ -50,9 +52,10 @@ func TestSettleTransaction(t *testing.T) {
 		mockClient.On("UpdateItem", mock.Anything, mock.AnythingOfType("*dynamodb.UpdateItemInput")).Return(&dynamodb.UpdateItemOutput{}, nil).Once()
 		mockClient.On("GetItem", mock.Anything, mock.Anything).Return(nil, errors.New("get wallet failed"))
 
-		err := store.SettleTransaction(context.Background(), tx)
+		settled, err := store.SettleTransaction(context.Background(), tx)
 
 		assert.Error(t, err)
+		assert.False(t, settled)
 		assert.Contains(t, err.Error(), "failed to get sender's wallet for settlement")
 		mockClient.AssertExpectations(t)
 	})
@@ -66,9 +69,10 @@ func TestSettleTransaction(t *testing.T) {
 		mockClient.On("GetItem", mock.Anything, mock.Anything).Once().Return(&dynamodb.GetItemOutput{Item: senderWalletAV}, nil)
 		mockClient.On("GetItem", mock.Anything, mock.Anything).Once().Return(nil, errors.New("get wallet failed"))
 
-		err := store.SettleTransaction(context.Background(), tx)
+		settled, err := store.SettleTransaction(context.Background(), tx)
 
 		assert.Error(t, err)
+		assert.False(t, settled)
 		assert.Contains(t, err.Error(), "failed to get receiver's wallet for settlement")
 		mockClient.AssertExpectations(t)
 	})
@@ -85,10 +89,25 @@ func TestSettleTransaction(t *testing.T) {
 
 		mockClient.On("TransactWriteItems", mock.Anything, mock.Anything).Return(nil, errors.New("transaction failed"))
 
-		err := store.SettleTransaction(context.Background(), tx)
+		settled, err := store.SettleTransaction(context.Background(), tx)
 
 		assert.Error(t, err)
+		assert.False(t, settled)
 		assert.Contains(t, err.Error(), "failed to execute settlement transaction")
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("Lock Acquisition Fails", func(t *testing.T) {
+		mockClient := new(mocks.DynamoDBAPI)
+		store := &Store{Client: mockClient, TransactionsTableName: "transactions"}
+
+		// Mock UpdateItem call to fail with a conditional check failed exception
+		mockClient.On("UpdateItem", mock.Anything, mock.AnythingOfType("*dynamodb.UpdateItemInput")).Return(nil, &types.ConditionalCheckFailedException{}).Once()
+
+		settled, err := store.SettleTransaction(context.Background(), tx)
+
+		assert.NoError(t, err)
+		assert.False(t, settled)
 		mockClient.AssertExpectations(t)
 	})
 }

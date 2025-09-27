@@ -20,19 +20,24 @@ import (
 // 1. Attempt to acquire a lock by setting the transaction status to WORKING.
 // 2. If the lock is acquired, proceed with the settlement.
 // This prevents a transaction from being processed multiple times if the lambda is invoked more than once for the same SQS message.
-func (s *Store) SettleTransaction(ctx context.Context, tx *models.Transaction) error {
+func (s *Store) SettleTransaction(ctx context.Context, tx *models.Transaction) (bool, error) {
 	// Step 1: Attempt to acquire a lock on the transaction by setting its status to WORKING.
 	// This is an atomic operation that will only succeed if the current status is RESERVED.
 	if err := s.acquireTransactionLock(ctx, tx.Id); err != nil {
 		if errors.Is(err, storage.ErrTransactionAlreadyProcessing) {
-			// Another process has already acquired the lock, so we can safely exit.
-			return nil
+			// Another process has already acquired the lock, or the transaction is in a non-processable state (e.g. cancelled).
+			// In either case, the settlement was not performed by this invocation, so we return false.
+			return false, nil
 		}
-		return fmt.Errorf("failed to acquire transaction lock: %w", err)
+		return false, fmt.Errorf("failed to acquire transaction lock: %w", err)
 	}
 
 	// Step 2: Proceed with the settlement logic.
-	return s.executeSettlement(ctx, tx)
+	if err := s.executeSettlement(ctx, tx); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // acquireTransactionLock atomically updates the transaction status from RESERVED to WORKING.

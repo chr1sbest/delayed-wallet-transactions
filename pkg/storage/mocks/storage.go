@@ -293,21 +293,31 @@ func (_m *Storage) ListWallets(ctx context.Context) ([]models.Wallet, error) {
 }
 
 // SettleTransaction provides a mock function with given fields: ctx, tx
-func (_m *Storage) SettleTransaction(ctx context.Context, tx *models.Transaction) error {
+func (_m *Storage) SettleTransaction(ctx context.Context, tx *models.Transaction) (bool, error) {
 	ret := _m.Called(ctx, tx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SettleTransaction")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) error); ok {
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) (bool, error)); ok {
+		return rf(ctx, tx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Transaction) bool); ok {
 		r0 = rf(ctx, tx)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(bool)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, *models.Transaction) error); ok {
+		r1 = rf(ctx, tx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // NewStorage creates a new instance of Storage. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

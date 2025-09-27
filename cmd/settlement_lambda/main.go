@@ -8,11 +8,14 @@ import (
 	"net/http"
 	"os"
 
+	"errors"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
+	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 	dynamo_store "github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb"
 )
 
@@ -49,9 +52,18 @@ func HandleRequest(ctx context.Context, sqsEvent events.SQSEvent) error {
 			continue
 		}
 
-		if err := store.SettleTransaction(ctx, &tx); err != nil {
-			log.Printf("error settling transaction: %v", err)
+		settlementPerformed, err := store.SettleTransaction(ctx, &tx)
+		if err != nil {
+			if errors.Is(err, storage.ErrTransactionNotProcessable) {
+				log.Printf("Skipping non-processable transaction %s", tx.Id)
+			} else {
+				log.Printf("error settling transaction: %v", err)
+			}
 			continue
+		}
+		if !settlementPerformed {
+			log.Printf("transaction was canceled or already completed, skipping settlement for %s", tx.Id)
+			return nil
 		}
 
 		if err := notifyApi(ctx, &tx); err != nil {

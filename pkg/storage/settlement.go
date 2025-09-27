@@ -11,5 +11,7 @@ import (
 // It should only be exposed to the component responsible for final settlement.
 type SettlementStore interface {
 	// SettleTransaction performs the final atomic settlement of a transaction.
-	SettleTransaction(ctx context.Context, tx *models.Transaction) error
+	// It returns a boolean indicating whether the settlement was actually performed,
+	// and an error if the settlement failed.
+	SettleTransaction(ctx context.Context, tx *models.Transaction) (bool, error)
 }
