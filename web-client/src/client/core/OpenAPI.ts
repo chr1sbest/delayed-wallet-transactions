@@ -19,7 +19,7 @@ export type OpenAPIConfig = {
 };
 
 export const OpenAPI: OpenAPIConfig = {
-    BASE: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
+    BASE: 'https://n7d6wysyal.execute-api.us-west-2.amazonaws.com/api',
     VERSION: '1.0.0',
     WITH_CREDENTIALS: false,
     CREDENTIALS: 'include',
