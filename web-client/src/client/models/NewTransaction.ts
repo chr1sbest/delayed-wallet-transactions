@@ -1,7 +1,6 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
-/* eslint-disable */
 export type NewTransaction = {
     from_user_id: string;
     to_user_id: string;

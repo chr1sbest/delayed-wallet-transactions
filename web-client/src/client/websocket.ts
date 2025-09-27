@@ -1,7 +1,12 @@
 // const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:3000/ws';
 const WEBSOCKET_URL = 'wss://1ex23kq855.execute-api.us-west-2.amazonaws.com/ws';
 
-type MessageCallback = (message: any) => void;
+export interface WebSocketMessage {
+  type: 'walletUpdate' | string;
+  payload: unknown;
+}
+
+type MessageCallback = (message: WebSocketMessage) => void;
 
 class WebSocketClient {
     private socket: WebSocket | null = null;
@@ -54,12 +59,12 @@ class WebSocketClient {
         }
     }
 
-    private handleMessage(data: any): void {
+    private handleMessage(data: string): void {
         // Parse the message if it's a JSON string
         let message;
         try {
             message = JSON.parse(data);
-        } catch (error) {
+        } catch {
             message = data;
         }
 
@@ -67,7 +72,7 @@ class WebSocketClient {
         this.subscribers.forEach(callback => callback(message));
     }
 
-    public subscribe(callback: (message: any) => void): () => void {
+    public subscribe(callback: (message: WebSocketMessage) => void): () => void {
         this.subscribers.add(callback);
         console.log("New subscriber added.");
 
@@ -77,7 +82,6 @@ class WebSocketClient {
             console.log("Subscriber removed.");
         };
     }
-
 }
 
 export const webSocketClient = new WebSocketClient();

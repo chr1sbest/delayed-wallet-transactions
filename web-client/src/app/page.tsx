@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { toast } from 'sonner';
 import { Wallet, DefaultService, ApiError, OpenAPI } from '@/client';
 import { LedgerDrawer } from '@/components/wallets/LedgerDrawer';
 import { CreateWalletDialog } from '@/components/wallets/CreateWalletDialog';

@@ -1,7 +1,6 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
-/* eslint-disable */
 import type { LedgerEntry } from '../models/LedgerEntry';
 import type { NewTransaction } from '../models/NewTransaction';
 import type { NewWallet } from '../models/NewWallet';

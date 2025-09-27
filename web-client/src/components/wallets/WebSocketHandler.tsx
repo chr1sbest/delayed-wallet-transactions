@@ -2,8 +2,19 @@
 
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { webSocketClient } from '@/client/websocket';
+import { webSocketClient, WebSocketMessage } from '@/client/websocket';
 import { Wallet } from '@/client';
+
+// Type guard to check if the payload is a valid WalletUpdatePayload
+function isWalletUpdatePayload(payload: unknown): payload is { user_id: string; transaction_id?: string; change: number; new_balance: number; } {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'user_id' in payload &&
+    'change' in payload &&
+    'new_balance' in payload
+  );
+}
 
 interface WebSocketHandlerProps {
   wallets: Wallet[];
@@ -13,11 +24,12 @@ interface WebSocketHandlerProps {
 
 export function WebSocketHandler({ wallets, onWalletUpdate, onTransactionUpdate }: WebSocketHandlerProps) {
   const processedIds = useRef(new Set<string>());
+
   useEffect(() => {
     webSocketClient.connect();
 
-    const handleWalletUpdate = (message: any) => {
-      if (message.type === 'walletUpdate') {
+    const handleWalletUpdate = (message: WebSocketMessage) => {
+      if (message.type === 'walletUpdate' && isWalletUpdatePayload(message.payload)) {
         onWalletUpdate(); // Keep this to refresh wallet balances
 
         const { user_id, transaction_id, change, new_balance } = message.payload;

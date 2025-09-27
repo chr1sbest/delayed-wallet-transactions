@@ -14,8 +14,6 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       case 'FAILED':
       case 'REJECTED':
         return 'bg-red-100 text-red-800';
-      case 'CANCELLED':
-        return 'bg-gray-100 text-gray-800';
       case 'RESERVED':
       case 'PENDING_APPROVAL':
       case 'APPROVED':
