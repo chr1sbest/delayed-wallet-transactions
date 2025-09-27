@@ -229,6 +229,10 @@ components:
         status:
           type: string
           enum: ["RESERVED", "PENDING_APPROVAL", "APPROVED", "REJECTED", "COMPLETED", "FAILED"]
+        delay_seconds:
+          type: integer
+          format: int32
+          description: "The delay in seconds before the transaction is processed."
         created_at:
           type: string
           format: date-time

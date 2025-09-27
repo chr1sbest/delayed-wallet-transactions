@@ -14,6 +14,7 @@ func ToApiTransaction(tx *models.Transaction) *api.Transaction {
 		ToUserId:    &tx.ToUserId,
 		Amount:      &tx.Amount,
 		Status:      &status,
+		DelaySeconds: tx.DelaySeconds,
 		CreatedAt:   &tx.CreatedAt,
 		UpdatedAt:   &tx.UpdatedAt,
 	}
@@ -26,6 +27,7 @@ func ToDomainNewTransaction(newTx *api.NewTransaction) *models.Transaction {
 		FromUserId:  newTx.FromUserId,
 		ToUserId:    newTx.ToUserId,
 		Amount:      newTx.Amount,
+		DelaySeconds: newTx.DelaySeconds,
 	}
 }
 
@@ -71,6 +73,7 @@ func ToDomainTransaction(tx *api.Transaction) *models.Transaction {
 		ToUserId:    *tx.ToUserId,
 		Amount:      *tx.Amount,
 		Status:      models.TransactionStatus(*tx.Status),
+		DelaySeconds: tx.DelaySeconds,
 		CreatedAt:   *tx.CreatedAt,
 		UpdatedAt:   *tx.UpdatedAt,
 	}

@@ -10,7 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"errors"
+
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
+	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 	"github.com/google/uuid"
 )
 
@@ -81,6 +84,13 @@ func (s *Store) CreateTransaction(ctx context.Context, tx *models.Transaction) (
 	// 5. Execute the transaction.
 	_, err = s.Client.TransactWriteItems(ctx, input)
 	if err != nil {
+		var tce *types.TransactionCanceledException
+		if errors.As(err, &tce) {
+			// Check if the first operation (updating the sender's wallet) failed due to a conditional check.
+			if len(tce.CancellationReasons) > 0 && *tce.CancellationReasons[0].Code == "ConditionalCheckFailed" {
+				return nil, storage.ErrInsufficientFunds
+			}
+		}
 		return nil, fmt.Errorf("failed to execute transaction: %w", err)
 	}
 

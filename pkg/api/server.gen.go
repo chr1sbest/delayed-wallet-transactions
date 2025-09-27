@@ -52,12 +52,15 @@ type NewWallet struct {
 
 // Transaction defines model for Transaction.
 type Transaction struct {
-	Amount     *int64             `json:"amount,omitempty"`
-	CreatedAt  *time.Time         `json:"created_at,omitempty"`
-	FromUserId *string            `json:"from_user_id,omitempty"`
-	Id         *string            `json:"id,omitempty"`
-	Status     *TransactionStatus `json:"status,omitempty"`
-	ToUserId   *string            `json:"to_user_id,omitempty"`
+	Amount    *int64     `json:"amount,omitempty"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+
+	// DelaySeconds The delay in seconds before the transaction is processed.
+	DelaySeconds *int32             `json:"delay_seconds,omitempty"`
+	FromUserId   *string            `json:"from_user_id,omitempty"`
+	Id           *string            `json:"id,omitempty"`
+	Status       *TransactionStatus `json:"status,omitempty"`
+	ToUserId     *string            `json:"to_user_id,omitempty"`
 
 	// Ttl A Unix timestamp representing the expiration time of the transaction record.
 	Ttl       *int64     `json:"ttl,omitempty"`
