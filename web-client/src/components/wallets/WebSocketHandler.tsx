@@ -3,10 +3,10 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { webSocketClient, WebSocketMessage } from '@/client/websocket';
-import { Wallet } from '@/client';
+import { Wallet, Transaction } from '@/client';
 
 // Type guard to check if the payload is a valid WalletUpdatePayload
-function isWalletUpdatePayload(payload: unknown): payload is { user_id: string; transaction_id?: string; change: number; new_balance: number; } {
+function isWalletUpdatePayload(payload: unknown): payload is { user_id: string; transaction_id?: string; transaction_status?: Transaction['status']; change: number; new_balance: number; } {
   return (
     typeof payload === 'object' &&
     payload !== null &&
@@ -19,7 +19,7 @@ function isWalletUpdatePayload(payload: unknown): payload is { user_id: string; 
 interface WebSocketHandlerProps {
   wallets: Wallet[];
   onWalletUpdate: () => void;
-  onTransactionUpdate: () => void;
+  onTransactionUpdate: (transaction: Partial<Transaction>) => void;
 }
 
 export function WebSocketHandler({ wallets, onWalletUpdate, onTransactionUpdate }: WebSocketHandlerProps) {
@@ -35,7 +35,9 @@ export function WebSocketHandler({ wallets, onWalletUpdate, onTransactionUpdate 
         const { user_id, transaction_id, change, new_balance } = message.payload;
 
         if (transaction_id) {
-          onTransactionUpdate(); // Refresh transaction list if a tx is involved
+                    if (message.payload.transaction_id && message.payload.transaction_status) {
+            onTransactionUpdate({ id: message.payload.transaction_id, status: message.payload.transaction_status });
+          }
         }
 
         // Deduplication check

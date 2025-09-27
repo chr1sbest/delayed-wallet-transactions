@@ -58,12 +58,13 @@ const CANCELLABLE_STATUSES: Array<Transaction['status']> = [
   Transaction.status.APPROVED,
 ];
 
-export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenChange, onTransactionScheduled }: {
+export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenChange, onTransactionScheduled, updatedTransaction }: {
   sourceWallet: Wallet;
   allWallets: Wallet[];
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onTransactionScheduled: () => void;
+    onTransactionScheduled: () => void;
+  updatedTransaction: Partial<Transaction> | null;
 }) {
   const [view, setView] = useState<'form' | 'transactions'>('form');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -96,7 +97,19 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
     if (view === 'transactions') {
       showTransactions();
     }
-  }, [view, showTransactions]);
+    }, [view, showTransactions]);
+
+  useEffect(() => {
+    if (updatedTransaction && updatedTransaction.id) {
+      setTransactions(prevTransactions =>
+        prevTransactions.map(tx =>
+          tx.id === updatedTransaction.id
+            ? { ...tx, status: updatedTransaction.status || tx.status }
+            : tx
+        )
+      );
+    }
+  }, [updatedTransaction]);
 
   const onSubmit = async (values: TransactionFormValues) => {
     const amount = parseInt(values.amount, 10);
@@ -125,7 +138,7 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
     try {
       await DefaultService.scheduleTransaction(transactionData);
       toast.success('Transaction scheduled successfully!');
-      onOpenChange(false);
+      setView('transactions');
       onTransactionScheduled();
     } catch (err) {
       let errorMessage = 'An unexpected error occurred.';

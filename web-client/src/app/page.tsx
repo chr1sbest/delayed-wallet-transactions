@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Wallet, DefaultService, ApiError, OpenAPI } from '@/client';
+import { Wallet, DefaultService, ApiError, OpenAPI, Transaction } from '@/client';
 import { LedgerDrawer } from '@/components/wallets/LedgerDrawer';
 import { CreateWalletDialog } from '@/components/wallets/CreateWalletDialog';
 import { NewTransactionDialog } from '@/components/wallets/NewTransactionDialog';
@@ -16,7 +16,8 @@ export default function HomePage() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
+    const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
+  const [updatedTransaction, setUpdatedTransaction] = useState<Transaction | null>(null);
 
   const fetchWallets = useCallback(async () => {
     try {
@@ -37,7 +38,14 @@ export default function HomePage() {
 
   return (
     <main className="container mx-auto p-8">
-      <WebSocketHandler wallets={wallets} onWalletUpdate={fetchWallets} onTransactionUpdate={fetchWallets} />
+            <WebSocketHandler
+        wallets={wallets}
+        onWalletUpdate={fetchWallets}
+        onTransactionUpdate={(transaction) => {
+          fetchWallets(); // Keep the wallet balance refresh
+          setUpdatedTransaction(transaction);
+        }}
+      />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Wallets</h1>
         <LedgerDrawer />
@@ -60,7 +68,8 @@ export default function HomePage() {
           allWallets={wallets}
           isOpen={!!selectedWallet}
           onOpenChange={() => setSelectedWallet(null)}
-          onTransactionScheduled={fetchWallets}
+                    onTransactionScheduled={fetchWallets}
+          updatedTransaction={updatedTransaction}
         />
       )}
     </main>
