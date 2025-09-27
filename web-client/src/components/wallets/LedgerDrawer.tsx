@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Drawer,
@@ -23,7 +24,7 @@ export function LedgerDrawer() {
       setLedgerEntries(entries);
     } catch (err) {
       console.error('Failed to fetch ledger entries:', err);
-      alert('Failed to fetch ledger entries.');
+      toast.error('Failed to fetch ledger entries.');
     } finally {
       setIsLoading(false);
     }
