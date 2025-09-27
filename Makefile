@@ -1,7 +1,7 @@
 # This file uses go run to execute mockery, which ensures that the version
 # specified in tools.go and go.mod is used, providing reproducible builds.
 
-.PHONY: mocks generate build local deploy-infra
+.PHONY: mocks generate build dev deploy-infra
 
 # All directories under /cmd
 LAMBDA_DIRS := $(shell find cmd -mindepth 1 -maxdepth 1 -type d)
@@ -21,9 +21,9 @@ build:
 	@echo "Building SAM application..."
 	sam build
 
-local: build
+dev: build
 	@echo "Starting reflex for watching Go files..."
-	@(export AWS_PROFILE=default && reflex -r "\.go$" -R "\.aws-sam" -- sh -c "sam build") &
+	@(export AWS_PROFILE=default && reflex -r "\.go$$" -R "\.aws-sam" -- sh -c "sam build") &
 	@echo "Starting local API using AWS_PROFILE=default..."
 	@(export AWS_PROFILE=default && sam local start-api)
 
@@ -44,6 +44,6 @@ help:
 	@echo "  make mocks           - Generate mocks for interfaces"
 	@echo "  make generate        - Generate server code from OpenAPI spec"
 	@echo "  make build           - Build the SAM application"
-	@echo "  make local           - Run the API locally with hot-reloading"
+	@echo "  make dev           - Run the API locally with hot-reloading"
 	@echo "  make deploy-infra     - Deploy the stack using configuration from samconfig.toml"
 	@echo "  make help            - Show this help message"

@@ -1,5 +1,7 @@
 # Delayed Wallet Transactions
 
+**[Live Demo](https://chr1sbest.github.io/delayed-wallet-transactions/)**
+
 ## Goal
 The system allows users to schedule a transfer of funds to another user at a future time. The funds are reserved at the time of scheduling to prevent double-spending and are processed asynchronously.
 
@@ -17,7 +19,7 @@ This architecture is designed entirely of serverless components (AWS Lambda, SQS
 ## Architecture
 This service is built using a modern, event-driven architecture on AWS. The main components are:
 
-- **Scheduler Service (`cmd/app`):** A Go-based HTTP server that exposes the primary API for creating and viewing transactions and wallets. It is responsible for initial request validation and authentication.
+- **API & WebSocket Orchestrator (`cmd/app`):** A Go-based service that exposes the primary HTTP API and orchestrates WebSocket connections. It handles initial request validation, authentication, and manages WebSocket lifecycle events (`$connect`, `$disconnect`).
 
 - **DynamoDB Tables:** A set of three purpose-built tables form the core of our data layer:
   - **`Wallets`**: Stores the current state of each user's wallet, including their available `balance`, `reserved` funds, and a `version` number for optimistic locking.
@@ -73,45 +75,28 @@ Ensuring financial correctness in a distributed system is the primary challenge.
 
 ### Setup
 
-1.  **Install dependencies:**
+1.  **Install Go Dependencies:**
+
+    Ensure you have Go installed (1.24+), then install the project dependencies:
     ```sh
     go mod tidy
     ```
 
-2.  **Configure your environment:**
-    - Copy the `.env.example` file to `.env`:
-      ```sh
-      cp .env.example .env
-      ```
-    - Edit the `.env` file with your specific AWS resource names:
-      - `DYNAMODB_TRANSACTIONS_TABLE_NAME`
-      - `DYNAMODB_WALLETS_TABLE_NAME`
-      - `DYNAMODB_LEDGER_TABLE_NAME`
-      - `SQS_QUEUE_URL`
+2.  **Deploy AWS Infrastructure:**
 
-3.  **Deploy AWS Resources with SAM:**
-
-    This project uses the AWS Serverless Application Model (SAM) to define and deploy the required AWS resources. The `template.yaml` file in the root of the project contains the definitions for the DynamoDB tables and the SQS queue.
-
-    To deploy the resources, run the following commands from the project root:
-
-    First, build the SAM application:
+    This project uses the AWS Serverless Application Model (SAM) to manage infrastructure. To deploy the stack (DynamoDB tables, SQS queue, Lambdas), run:
     ```sh
-    sam build
+    make deploy-infra
     ```
+    This command uses the settings in `samconfig.toml` to deploy the stack. The first time you run it, you may be prompted to go through the guided deployment process (`sam deploy --guided`).
 
-    Then, deploy the resources using the guided deployment process. This will prompt you for configuration details, such as the AWS region and a stack name.
+3.  **Run for Local Development:**
+
+    To run the application locally with hot-reloading, use the following command. **Note:** This command relies on `sam local start-api`, which requires [Docker](https://www.docker.com/get-started) to be installed and running.
     ```sh
-    sam deploy --guided
+    make dev
     ```
-
-    After deployment, the SAM CLI will output the names and ARNs of the created resources. You will need to use these outputs to update your `.env` file.
-
-4.  **Run the application:**
-    ```sh
-    go run ./cmd/app/main.go
-    ```
-    The server will start on port 8080 by default.
+    This will start the SAM local API on `http://localhost:3000` and automatically rebuild the application when you make changes to Go files.
 
 ## API Documentation
 
