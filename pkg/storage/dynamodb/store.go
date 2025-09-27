@@ -20,17 +20,19 @@ type DynamoDBAPI interface {
 type Store struct {
 	Client                DynamoDBAPI
 	TransactionsTableName string
-	WalletsTableName      string
-	LedgerTableName       string
+	WalletsTableName            string
+	LedgerTableName             string
+	WebsocketConnectionsTableName string
 }
 
 // New creates a new Store with all table dependencies.
-func New(client DynamoDBAPI, transactionsTable, walletsTable, ledgerTable string) *Store {
+func New(client DynamoDBAPI, transactionsTable, walletsTable, ledgerTable, websocketConnectionsTable string) *Store {
 	return &Store{
 		Client:                client,
 		TransactionsTableName: transactionsTable,
 		WalletsTableName:      walletsTable,
-		LedgerTableName:       ledgerTable,
+		LedgerTableName:             ledgerTable,
+		WebsocketConnectionsTableName: websocketConnectionsTable,
 	}
 }
 

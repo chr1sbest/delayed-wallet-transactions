@@ -41,7 +41,7 @@ func init() {
 	}
 
 	// The settlement lambda doesn't need a scheduler, so we pass nil.
-	store = dydbstore.New(dbClient, transactionsTable, walletsTable, ledgerTable)
+	store = dydbstore.New(dbClient, transactionsTable, walletsTable, ledgerTable, "")
 }
 
 // HandleRequest processes SQS messages and settles the transactions.

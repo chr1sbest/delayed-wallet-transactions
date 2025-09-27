@@ -21,7 +21,7 @@ func TestCreateWallet(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		mockClient.On("PutItem", mock.Anything, mock.Anything).Return(&dynamodb.PutItemOutput{}, nil)
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		createdWallet, err := store.CreateWallet(context.Background(), wallet)
 
 		assert.NoError(t, err)
@@ -33,7 +33,7 @@ func TestCreateWallet(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		mockClient.On("PutItem", mock.Anything, mock.Anything).Return(nil, &types.ConditionalCheckFailedException{})
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		_, err := store.CreateWallet(context.Background(), wallet)
 
 		assert.Error(t, err)
@@ -45,7 +45,7 @@ func TestCreateWallet(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		mockClient.On("PutItem", mock.Anything, mock.Anything).Return(nil, errors.New("some other storage error"))
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		_, err := store.CreateWallet(context.Background(), wallet)
 
 		assert.Error(t, err)
@@ -61,7 +61,7 @@ func TestDeleteWallet(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		mockClient.On("DeleteItem", mock.Anything, mock.Anything).Return(&dynamodb.DeleteItemOutput{}, nil)
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		err := store.DeleteWallet(context.Background(), userID)
 
 		assert.NoError(t, err)
@@ -72,7 +72,7 @@ func TestDeleteWallet(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		mockClient.On("DeleteItem", mock.Anything, mock.Anything).Return(nil, &types.ConditionalCheckFailedException{})
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		err := store.DeleteWallet(context.Background(), userID)
 
 		assert.Error(t, err)
@@ -84,7 +84,7 @@ func TestDeleteWallet(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		mockClient.On("DeleteItem", mock.Anything, mock.Anything).Return(nil, errors.New("some other storage error"))
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		err := store.DeleteWallet(context.Background(), userID)
 
 		assert.Error(t, err)
@@ -102,7 +102,7 @@ func TestGetWallet(t *testing.T) {
 		walletAV, _ := attributevalue.MarshalMap(wallet)
 		mockClient.On("GetItem", mock.Anything, mock.Anything).Return(&dynamodb.GetItemOutput{Item: walletAV}, nil)
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		retrievedWallet, err := store.GetWallet(context.Background(), userID)
 
 		assert.NoError(t, err)
@@ -114,7 +114,7 @@ func TestGetWallet(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		mockClient.On("GetItem", mock.Anything, mock.Anything).Return(&dynamodb.GetItemOutput{Item: nil}, nil)
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		_, err := store.GetWallet(context.Background(), userID)
 
 		assert.Error(t, err)
@@ -126,7 +126,7 @@ func TestGetWallet(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		mockClient.On("GetItem", mock.Anything, mock.Anything).Return(nil, errors.New("some other storage error"))
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		_, err := store.GetWallet(context.Background(), userID)
 
 		assert.Error(t, err)
@@ -148,7 +148,7 @@ func TestListWallets(t *testing.T) {
 		}
 		mockClient.On("Scan", mock.Anything, mock.Anything).Return(&dynamodb.ScanOutput{Items: walletsAV}, nil)
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		retrievedWallets, err := store.ListWallets(context.Background())
 
 		assert.NoError(t, err)
@@ -160,7 +160,7 @@ func TestListWallets(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		mockClient.On("Scan", mock.Anything, mock.Anything).Return(nil, errors.New("some other storage error"))
 
-		store := New(mockClient, "transactions", "wallets", "ledger")
+		store := New(mockClient, "transactions", "wallets", "ledger", "")
 		_, err := store.ListWallets(context.Background())
 
 		assert.Error(t, err)

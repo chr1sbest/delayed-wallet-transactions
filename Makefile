@@ -11,6 +11,7 @@ mocks:
 	@go run github.com/vektra/mockery/v2 --name=Storage --dir=./pkg/storage --output=./pkg/storage/mocks --outpkg=mocks --case=underscore
 	@go run github.com/vektra/mockery/v2 --name=CronScheduler --dir=./pkg/scheduler --output=./pkg/scheduler/mocks --outpkg=mocks --case=underscore
 	@go run github.com/vektra/mockery/v2 --name=DynamoDBAPI --dir=./pkg/storage/dynamodb --output=./pkg/storage/dynamodb/mocks --outpkg=mocks --case=underscore
+	@go run github.com/vektra/mockery/v2 --name=WebSocketManager --dir=./pkg/storage --output=./pkg/storage/mocks --outpkg=mocks --case=underscore
 	@echo "Mocks generated successfully."
 
 #########################

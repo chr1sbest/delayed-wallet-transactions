@@ -1,0 +1,38 @@
+openapi: 3.0.0
+info:
+  title: "Delayed Wallet Websocket API"
+  version: "1.0.0"
+  description: "A WebSocket API for the delayed wallet system, providing real-time updates and interactions."
+
+paths:
+  /$connect:
+    post:
+      summary: "Handle new client connections"
+      description: "Triggered when a new client connects to the WebSocket API. This can be used to register the connection ID."
+      responses:
+        '200':
+          description: "Successfully connected."
+
+  /$disconnect:
+    post:
+      summary: "Handle client disconnections"
+      description: "Triggered when a client disconnects. This can be used to clean up the connection ID."
+      responses:
+        '200':
+          description: "Successfully disconnected."
+
+  /sendmessage:
+    post:
+      summary: "Send a message from a client"
+      description: "A client can send a message through the WebSocket. The message format is defined by the application."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+      responses:
+        '200':
+          description: "Message sent successfully."

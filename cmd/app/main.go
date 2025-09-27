@@ -13,6 +13,7 @@ import (
 	chiadapter "github.com/awslabs/aws-lambda-go-api-proxy/chi"
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/handlers"
+	"github.com/chris/delayed-wallet-transactions/pkg/handlers/websockets"
 	customMiddleware "github.com/chris/delayed-wallet-transactions/pkg/middleware"
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
 	dydbstore "github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb"
@@ -22,6 +23,9 @@ import (
 	"github.com/rs/cors"
 	"github.com/swaggest/swgui/v5emb"
 
+	"encoding/json"
+
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
@@ -35,10 +39,11 @@ func main() {
 	transactionsTable := getEnv("DYNAMODB_TRANSACTIONS_TABLE_NAME", "Transactions")
 	walletsTable := getEnv("DYNAMODB_WALLETS_TABLE_NAME", "Wallets")
 	ledgerTable := getEnv("DYNAMODB_LEDGER_TABLE_NAME", "LedgerEntries")
+	websocketConnectionsTable := getEnv("DYNAMODB_WEBSOCKET_CONNECTIONS_TABLE_NAME", "WebsocketConnections")
 	sqsQueueURL := getEnv("SQS_QUEUE_URL", "")
 
 	// Load the AWS SDK configuration.
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile("default"))
+	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
@@ -48,9 +53,10 @@ func main() {
 	sqsClient := sqs.NewFromConfig(cfg)
 
 	// Initialize components.
-	store := dydbstore.New(dbClient, transactionsTable, walletsTable, ledgerTable)
+	store := dydbstore.New(dbClient, transactionsTable, walletsTable, ledgerTable, websocketConnectionsTable)
 	sqsScheduler := scheduler.NewSQSScheduler(sqsClient, sqsQueueURL)
 	apiHandler := handlers.NewApiHandler(store, sqsScheduler)
+	websocketHandler := websockets.NewWebsocketHandler(store)
 
 	// Use oapi-codegen's generated handler to mount the API routes.
 	apiRouter := api.Handler(apiHandler)
@@ -97,10 +103,9 @@ func main() {
 		swguiHandler.ServeHTTP(w, r)
 	})
 
-	// If we're running in a Lambda environment, use the chiadapter.
+	// If we're running in a Lambda environment, use a combined handler for HTTP and WebSocket requests.
 	if os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != "" {
-		chiLambda := chiadapter.New(chiRouter)
-		lambda.Start(chiLambda.ProxyWithContext)
+		lambda.Start(NewCombinedHandler(chiRouter, websocketHandler))
 	} else {
 		// Otherwise, start a local HTTP server.
 		log.Println("Server starting on port 8080...")
@@ -116,4 +121,32 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// CombinedHandler can handle both API Gateway (HTTP) and API Gateway v2 (WebSocket) events.
+func NewCombinedHandler(httpHandler chi.Router, wsHandler *websockets.WebsocketHandler) func(ctx context.Context, request json.RawMessage) (interface{}, error) {
+	chiLambda := chiadapter.New(httpHandler.(*chi.Mux))
+
+	return func(ctx context.Context, request json.RawMessage) (interface{}, error) {
+		// Try to unmarshal as a WebSocket request first.
+		var wsRequest events.APIGatewayWebsocketProxyRequest
+		if err := json.Unmarshal(request, &wsRequest); err == nil && wsRequest.RequestContext.RouteKey != "" {
+			switch wsRequest.RequestContext.RouteKey {
+			case "$connect":
+				return wsHandler.HandleConnect(ctx, wsRequest)
+			case "$disconnect":
+				return wsHandler.HandleDisconnect(ctx, wsRequest)
+			default:
+				return wsHandler.HandleDefault(ctx, wsRequest)
+			}
+		}
+
+		// If it's not a WebSocket request, assume it's an HTTP request.
+		var httpRequest events.APIGatewayProxyRequest
+		if err := json.Unmarshal(request, &httpRequest); err != nil {
+			return nil, err
+		}
+
+		return chiLambda.ProxyWithContext(ctx, httpRequest)
+	}
 }

@@ -40,6 +40,14 @@ Resources:
             TableName: !Ref TransactionsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref LedgerTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WebsocketConnectionsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - execute-api:ManageConnections
+              Resource:
+                - !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*'
       Events:
         ApiEvent:
           Type: Api
@@ -52,7 +60,9 @@ Resources:
           DYNAMODB_WALLETS_TABLE_NAME: !Ref WalletsTable
           DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
           DYNAMODB_LEDGER_TABLE_NAME: !Ref LedgerTable
+          DYNAMODB_WEBSOCKET_CONNECTIONS_TABLE_NAME: !Ref WebsocketConnectionsTable
           SQS_QUEUE_URL: !Ref TransactionQueue
+          WEBSOCKET_API_ENDPOINT: !Sub 'https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/ws'
 
   ReconciliationLambda:
     Type: AWS::Serverless::Function
@@ -108,6 +118,72 @@ Resources:
           DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
           DYNAMODB_LEDGER_TABLE_NAME: !Ref LedgerTable
           SQS_QUEUE_URL: !Ref TransactionQueue
+
+  # WebSocket API Gateway
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: "DelayedTransactions-WebSocketApi"
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
+
+  WebSocketIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations"
+
+  WebSocketConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $connect
+      AuthorizationType: NONE
+      OperationName: ConnectRoute
+      Target: !Sub 'integrations/${WebSocketIntegration}'
+
+  WebSocketDisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      OperationName: DisconnectRoute
+      Target: !Sub 'integrations/${WebSocketIntegration}'
+
+  WebSocketDefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $default
+      AuthorizationType: NONE
+      OperationName: DefaultRoute
+      Target: !Sub 'integrations/${WebSocketIntegration}'
+
+  WebSocketDeployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - WebSocketConnectRoute
+      - WebSocketDisconnectRoute
+      - WebSocketDefaultRoute
+    Properties:
+      ApiId: !Ref WebSocketApi
+
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref WebSocketApi
+      StageName: ws
+      DeploymentId: !Ref WebSocketDeployment
+
+  WebSocketApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt ApiFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/*"
 
   # DynamoDB Tables
   WalletsTable:
@@ -189,6 +265,30 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  WebsocketConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: "DelayedWallets-WebsocketConnections"
+      AttributeDefinitions:
+        - AttributeName: connection_id
+          AttributeType: S
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connection_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: pk-index
+          KeySchema:
+            - AttributeName: pk
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: !Ref BillingMode
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
   # SQS Queue
   TransactionQueue:
     Type: AWS::SQS::Queue
@@ -200,6 +300,9 @@ Outputs:
   ApiUrl:
     Description: 'API URL'
     Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/api'
+  WebSocketApiUrl:
+    Description: 'WebSocket API URL'
+    Value: !Sub 'wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/ws'
   WalletsTableName:
     Description: "The name of the Wallets DynamoDB table"
     Value: !Ref WalletsTable
