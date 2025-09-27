@@ -1,0 +1,244 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'SAM template for the Delayed Wallet Transactions service, including
+  Lambda functions, API Gateway, DynamoDB tables, and an SQS queue.
+
+  '
+Parameters:
+  BillingMode:
+    Type: String
+    Description: Specifies the billing mode for DynamoDB tables.
+    Default: PAY_PER_REQUEST
+    AllowedValues:
+    - PROVISIONED
+    - PAY_PER_REQUEST
+Resources:
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: DelayedTransactionsApi
+      StageName: api
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+      SamResourceId: ApiFunction
+    Properties:
+      FunctionName: DelayedTransactions-ApiFunction
+      CodeUri: ApiFunction
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Timeout: 5
+      Policies:
+      - SQSSendMessagePolicy:
+          QueueName:
+            Fn::GetAtt:
+            - TransactionQueue
+            - QueueName
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: WalletsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: TransactionsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: LedgerTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: any
+            RestApiId:
+              Ref: ApiGateway
+      Environment:
+        Variables:
+          DYNAMODB_WALLETS_TABLE_NAME:
+            Ref: WalletsTable
+          DYNAMODB_TRANSACTIONS_TABLE_NAME:
+            Ref: TransactionsTable
+          DYNAMODB_LEDGER_TABLE_NAME:
+            Ref: LedgerTable
+          SQS_QUEUE_URL:
+            Ref: TransactionQueue
+  ReconciliationLambda:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+      SamResourceId: ReconciliationLambda
+    Properties:
+      FunctionName: DelayedTransactions-ReconciliationLambda
+      CodeUri: ReconciliationLambda
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Timeout: 60
+      Policies:
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: TransactionsTable
+      - SQSSendMessagePolicy:
+          QueueName:
+            Fn::GetAtt:
+            - TransactionQueue
+            - QueueName
+      Events:
+        Scheduler:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+      Environment:
+        Variables:
+          DYNAMODB_TRANSACTIONS_TABLE_NAME:
+            Ref: TransactionsTable
+          SQS_QUEUE_URL:
+            Ref: TransactionQueue
+  SettlementLambda:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+      SamResourceId: SettlementLambda
+    Properties:
+      FunctionName: DelayedTransactions-SettlementLambda
+      CodeUri: SettlementLambda
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Timeout: 30
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: WalletsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: TransactionsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: LedgerTable
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - TransactionQueue
+              - Arn
+            BatchSize: 1
+      Environment:
+        Variables:
+          DYNAMODB_WALLETS_TABLE_NAME:
+            Ref: WalletsTable
+          DYNAMODB_TRANSACTIONS_TABLE_NAME:
+            Ref: TransactionsTable
+          DYNAMODB_LEDGER_TABLE_NAME:
+            Ref: LedgerTable
+  WalletsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: DelayedWallets-Wallets
+      AttributeDefinitions:
+      - AttributeName: user_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: user_id
+        KeyType: HASH
+      BillingMode:
+        Ref: BillingMode
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+  TransactionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: DelayedWallets-Transactions
+      AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+      - AttributeName: status
+        AttributeType: S
+      - AttributeName: created_at
+        AttributeType: S
+      - AttributeName: from_user_id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: id
+        KeyType: HASH
+      BillingMode:
+        Ref: BillingMode
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      GlobalSecondaryIndexes:
+      - IndexName: status-created_at-index
+        KeySchema:
+        - AttributeName: status
+          KeyType: HASH
+        - AttributeName: created_at
+          KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+      - IndexName: from_user_id-index
+        KeySchema:
+        - AttributeName: from_user_id
+          KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+  LedgerTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: DelayedWallets-Ledger
+      AttributeDefinitions:
+      - AttributeName: entry_id
+        AttributeType: S
+      - AttributeName: gsi1pk
+        AttributeType: S
+      - AttributeName: timestamp
+        AttributeType: S
+      KeySchema:
+      - AttributeName: entry_id
+        KeyType: HASH
+      BillingMode:
+        Ref: BillingMode
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      GlobalSecondaryIndexes:
+      - IndexName: gsi1pk-timestamp-index
+        KeySchema:
+        - AttributeName: gsi1pk
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+  TransactionQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: DelayedTransactions-TransactionQueue
+      VisibilityTimeout: 300
+Outputs:
+  ApiUrl:
+    Description: API URL
+    Value:
+      Fn::Sub: https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/api
+  WalletsTableName:
+    Description: The name of the Wallets DynamoDB table
+    Value:
+      Ref: WalletsTable
+  TransactionsTableName:
+    Description: The name of the Transactions DynamoDB table
+    Value:
+      Ref: TransactionsTable
+  LedgerTableName:
+    Description: The name of the Ledger DynamoDB table
+    Value:
+      Ref: LedgerTable
+  TransactionQueueUrl:
+    Description: The URL of the SQS transaction queue
+    Value:
+      Ref: TransactionQueue
+  TransactionQueueArn:
+    Description: The ARN of the SQS transaction queue
+    Value:
+      Fn::GetAtt:
+      - TransactionQueue
+      - Arn

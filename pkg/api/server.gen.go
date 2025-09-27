@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for TransactionStatus.
@@ -53,12 +52,12 @@ type NewWallet struct {
 
 // Transaction defines model for Transaction.
 type Transaction struct {
-	Amount     *int64              `json:"amount,omitempty"`
-	CreatedAt  *time.Time          `json:"created_at,omitempty"`
-	FromUserId *string             `json:"from_user_id,omitempty"`
-	Id         *openapi_types.UUID `json:"id,omitempty"`
-	Status     *TransactionStatus  `json:"status,omitempty"`
-	ToUserId   *string             `json:"to_user_id,omitempty"`
+	Amount     *int64             `json:"amount,omitempty"`
+	CreatedAt  *time.Time         `json:"created_at,omitempty"`
+	FromUserId *string            `json:"from_user_id,omitempty"`
+	Id         *string            `json:"id,omitempty"`
+	Status     *TransactionStatus `json:"status,omitempty"`
+	ToUserId   *string            `json:"to_user_id,omitempty"`
 
 	// Ttl A Unix timestamp representing the expiration time of the transaction record.
 	Ttl       *int64     `json:"ttl,omitempty"`
@@ -102,10 +101,10 @@ type ServerInterface interface {
 	ScheduleTransaction(w http.ResponseWriter, r *http.Request)
 	// Cancel a transaction by its ID
 	// (DELETE /transactions/{transactionId})
-	CancelTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID)
+	CancelTransactionById(w http.ResponseWriter, r *http.Request, transactionId string)
 	// Get a transaction by its ID
 	// (GET /transactions/{transactionId})
-	GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID)
+	GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId string)
 	// List all transactions for a user
 	// (GET /users/{userId}/transactions)
 	ListTransactionsByUserId(w http.ResponseWriter, r *http.Request, userId string)
@@ -141,13 +140,13 @@ func (_ Unimplemented) ScheduleTransaction(w http.ResponseWriter, r *http.Reques
 
 // Cancel a transaction by its ID
 // (DELETE /transactions/{transactionId})
-func (_ Unimplemented) CancelTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID) {
+func (_ Unimplemented) CancelTransactionById(w http.ResponseWriter, r *http.Request, transactionId string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get a transaction by its ID
 // (GET /transactions/{transactionId})
-func (_ Unimplemented) GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID) {
+func (_ Unimplemented) GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -237,7 +236,7 @@ func (siw *ServerInterfaceWrapper) CancelTransactionById(w http.ResponseWriter, 
 	var err error
 
 	// ------------- Path parameter "transactionId" -------------
-	var transactionId openapi_types.UUID
+	var transactionId string
 
 	err = runtime.BindStyledParameterWithOptions("simple", "transactionId", chi.URLParam(r, "transactionId"), &transactionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
@@ -262,7 +261,7 @@ func (siw *ServerInterfaceWrapper) GetTransactionById(w http.ResponseWriter, r *
 	var err error
 
 	// ------------- Path parameter "transactionId" -------------
-	var transactionId openapi_types.UUID
+	var transactionId string
 
 	err = runtime.BindStyledParameterWithOptions("simple", "transactionId", chi.URLParam(r, "transactionId"), &transactionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {

@@ -1,0 +1,8 @@
+{
+  "name": "delayed-wallet-transactions",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:chr1sbest/delayed-wallet-transactions.git",
+  "author": "Chris Best <chr2sbest@gmail.com>",
+  "license": "MIT"
+}

@@ -10,9 +10,9 @@ import (
 
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
+	"github.com/google/uuid"
 	scheduler_mocks "github.com/chris/delayed-wallet-transactions/pkg/scheduler/mocks"
 	storage_mocks "github.com/chris/delayed-wallet-transactions/pkg/storage/mocks"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -31,7 +31,7 @@ func TestScheduleTransaction_Success(t *testing.T) {
 		}
 
 		createdTx := &models.Transaction{
-			Id:         openapi_types.UUID{0x1}, // Mock ID
+			Id:         uuid.New().String(), // Mock ID
 			FromUserId: newTx.FromUserId,
 			ToUserId:   newTx.ToUserId,
 			Amount:     newTx.Amount,
@@ -70,7 +70,7 @@ func TestScheduleTransaction_Success(t *testing.T) {
 		}
 
 		createdTx := &models.Transaction{
-			Id:         openapi_types.UUID{0x1}, // Mock ID
+			Id:         uuid.New().String(), // Mock ID
 			FromUserId: newTx.FromUserId,
 			ToUserId:   newTx.ToUserId,
 			Amount:     newTx.Amount,

@@ -30,7 +30,7 @@ local: build
 # Deploy new infrastructure with SAM
 deploy-infra: build
 	@echo "Deploying infrastructure..."
-	sam deploy --profile default
+	sam deploy --profile default --no-confirm-changeset
 
 .PHONY: generate
 generate:

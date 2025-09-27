@@ -5,13 +5,12 @@ import (
 	"time"
 
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // TransactionReader defines the interface for reading transaction data.
 type TransactionReader interface {
 	// GetTransaction retrieves a transaction by its ID.
-	GetTransaction(ctx context.Context, txID openapi_types.UUID) (*models.Transaction, error)
+	GetTransaction(ctx context.Context, txID string) (*models.Transaction, error)
 
 	// GetStuckTransactions retrieves transactions that are in a 'RESERVED' state for longer than the specified duration.
 	GetStuckTransactions(ctx context.Context, maxAge time.Duration) ([]models.Transaction, error)
@@ -27,7 +26,7 @@ type TransactionManager interface {
 	CreateTransaction(ctx context.Context, newTx *models.Transaction) (*models.Transaction, error)
 
 	// CancelTransaction cancels a transaction if it's in a cancellable state.
-	CancelTransaction(ctx context.Context, txID openapi_types.UUID) error
+	CancelTransaction(ctx context.Context, txID string) error
 }
 
 // TransactionStore combines the reader and manager interfaces.

@@ -120,6 +120,9 @@ Resources:
         - AttributeName: user_id
           KeyType: HASH
       BillingMode: !Ref BillingMode
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   TransactionsTable:
     Type: AWS::DynamoDB::Table
@@ -138,6 +141,9 @@ Resources:
         - AttributeName: id
           KeyType: HASH
       BillingMode: !Ref BillingMode
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
       GlobalSecondaryIndexes:
         - IndexName: status-created_at-index
           KeySchema:
@@ -169,6 +175,9 @@ Resources:
         - AttributeName: entry_id
           KeyType: HASH
       BillingMode: !Ref BillingMode
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
       GlobalSecondaryIndexes:
         - IndexName: gsi1pk-timestamp-index
           KeySchema:

@@ -2,8 +2,6 @@ package models
 
 import (
 	"time"
-
-	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // TransactionStatus defines the possible states of a transaction.
@@ -14,13 +12,12 @@ const (
 	APPROVED  TransactionStatus = "APPROVED"
 	COMPLETED TransactionStatus = "COMPLETED"
 	CANCELLED TransactionStatus = "CANCELLED"
-	FAILED    TransactionStatus = "FAILED"
 )
 
 // Transaction represents the internal domain model for a transaction.
 // It includes dynamodbav tags for marshalling.
 type Transaction struct {
-	Id          openapi_types.UUID `dynamodbav:"id"`
+	Id          string             `dynamodbav:"id"`
 	FromUserId  string             `dynamodbav:"from_user_id"`
 	ToUserId    string             `dynamodbav:"to_user_id"`
 	Amount      int64              `dynamodbav:"amount"`

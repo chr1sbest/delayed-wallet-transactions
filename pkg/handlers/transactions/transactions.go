@@ -12,7 +12,6 @@ import (
 	"github.com/chris/delayed-wallet-transactions/pkg/mapping"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // TransactionsHandler holds the dependencies for transaction-related handlers.
@@ -42,6 +41,7 @@ func (h *TransactionsHandler) ScheduleTransaction(w http.ResponseWriter, r *http
 		if errors.Is(err, storage.ErrInsufficientFunds) {
 			http.Error(w, "Insufficient funds", http.StatusUnprocessableEntity)
 		} else {
+						log.Printf("ERROR: Failed to create transaction in store: %v\n", err)
 			http.Error(w, fmt.Sprintf("Failed to schedule transaction: %v", err), http.StatusInternalServerError)
 		}
 		return
@@ -68,7 +68,7 @@ func (h *TransactionsHandler) ScheduleTransaction(w http.ResponseWriter, r *http
 }
 
 // GetTransactionById handles the logic for retrieving a transaction by its ID.
-func (h *TransactionsHandler) GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID) {
+func (h *TransactionsHandler) GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId string) {
 	domainTx, err := h.Store.GetTransaction(r.Context(), transactionId)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to retrieve transaction: %v", err), http.StatusNotFound)
@@ -84,7 +84,7 @@ func (h *TransactionsHandler) GetTransactionById(w http.ResponseWriter, r *http.
 }
 
 // CancelTransactionById handles the logic for cancelling a transaction.
-func (h *TransactionsHandler) CancelTransactionById(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID) {
+func (h *TransactionsHandler) CancelTransactionById(w http.ResponseWriter, r *http.Request, transactionId string) {
 	err := h.Store.CancelTransaction(r.Context(), transactionId)
 	if err != nil {
 		if errors.Is(err, storage.ErrTransactionNotCancellable) {
