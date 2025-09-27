@@ -52,7 +52,11 @@ const newTransactionSchema = z.object({
 
 type TransactionFormValues = z.infer<typeof newTransactionSchema>;
 
-const CANCELLABLE_STATUSES: readonly NonNullable<Transaction['status']>[] = ['RESERVED', 'PENDING_APPROVAL', 'APPROVED'];
+const CANCELLABLE_STATUSES: Array<Transaction['status']> = [
+  Transaction.status.RESERVED,
+  Transaction.status.PENDING_APPROVAL,
+  Transaction.status.APPROVED,
+];
 
 export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenChange, onTransactionScheduled }: {
   sourceWallet: Wallet;
@@ -131,12 +135,25 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
 
   const handleCancelTransaction = async () => {
     if (!transactionToCancel || !transactionToCancel.id) return;
+    const txIdToCancel = transactionToCancel.id;
+
     try {
-      await DefaultService.cancelTransactionById(transactionToCancel.id);
+      await DefaultService.cancelTransactionById(txIdToCancel);
+      
+      // Optimistically update the local state to show the transaction as 'REJECTED'
+      setTransactions(prevTransactions =>
+        prevTransactions.map(tx =>
+          tx.id === txIdToCancel ? { ...tx, status: Transaction.status.REJECTED } : tx
+        )
+      );
+
+      // Notify the parent component to refresh the main wallet list
+      onTransactionScheduled();
+      
+      toast.success('Transaction canceled successfully!');
       setTransactionToCancel(null);
-      await showTransactions(); // Refresh the list
     } catch (err) {
-            toast.error(err instanceof ApiError ? `Failed to cancel transaction: ${err.body?.message}` : 'An unexpected error occurred.');
+      toast.error(err instanceof ApiError ? `Failed to cancel transaction: ${err.body?.message}` : 'An unexpected error occurred.');
       console.error(err);
     }
   };
