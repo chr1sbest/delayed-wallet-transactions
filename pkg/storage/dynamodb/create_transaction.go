@@ -3,7 +3,7 @@ package dynamodb
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -33,7 +33,7 @@ func (s *Store) CreateTransaction(ctx context.Context, tx *models.Transaction) (
 	tx.UpdatedAt = now
 	tx.TTL = time.Now().Add(24 * time.Hour).Unix()
 
-	log.Printf("DEBUG: Creating transaction object: %+v\n", tx)
+	slog.Log(ctx, slog.LevelDebug, "creating transaction", "transaction", tx)
 
 	// Marshal the transaction for the Put operation.
 	txAV, err := attributevalue.MarshalMap(tx)

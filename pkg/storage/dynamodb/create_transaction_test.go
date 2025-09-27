@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
+	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -78,8 +79,7 @@ func TestCreateTransaction(t *testing.T) {
 		_, err := store.CreateTransaction(context.Background(), tx)
 
 		assert.Error(t, err)
-		// This is a bit brittle, but it's the best we can do without a more specific error type.
-		assert.Contains(t, err.Error(), "failed to execute transaction")
+		assert.ErrorIs(t, err, storage.ErrInsufficientFunds)
 		mockClient.AssertExpectations(t)
 	})
 }

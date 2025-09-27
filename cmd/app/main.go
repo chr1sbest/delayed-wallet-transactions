@@ -112,17 +112,8 @@ func main() {
 		swguiHandler.ServeHTTP(w, r)
 	})
 
-	// If we're running in a Lambda environment, use a combined handler for HTTP and WebSocket requests.
-	if os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != "" {
-		lambda.Start(NewCombinedHandler(chiRouter, websocketHandler))
-	} else {
-		// Otherwise, start a local HTTP server.
-		log.Println("HTTP server starting on port 8080...")
-		log.Println("WebSocket server starting on port 8080...")
-		if err := http.ListenAndServe(":8080", chiRouter); err != nil {
-			log.Fatalf("Failed to start server: %v", err)
-		}
-	}
+	// Start the lambda handler. This will be used for both AWS Lambda and local development.
+	lambda.Start(NewCombinedHandler(chiRouter, websocketHandler))
 }
 
 // getEnv reads an environment variable or returns a default value.

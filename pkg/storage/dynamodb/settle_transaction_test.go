@@ -16,7 +16,7 @@ import (
 
 func TestSettleTransaction(t *testing.T) {
 	txID := uuid.New().String()
-	tx := &models.Transaction{Id: txID, FromUserId: "user1", ToUserId: "user2", Amount: 100, Status: models.APPROVED}
+	tx := &models.Transaction{Id: txID, FromUserId: "user1", ToUserId: "user2", Amount: 100, Status: models.RESERVED}
 	senderWallet := &models.Wallet{UserId: "user1", Balance: 100, Reserved: 100, Version: 1}
 	receiverWallet := &models.Wallet{UserId: "user2", Balance: 50, Version: 1}
 
@@ -24,14 +24,17 @@ func TestSettleTransaction(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		store := &Store{Client: mockClient, TransactionsTableName: "transactions", WalletsTableName: "wallets", LedgerTableName: "ledger"}
 
+		// Mock UpdateItem call to acquire lock
+		mockClient.On("UpdateItem", mock.Anything, mock.AnythingOfType("*dynamodb.UpdateItemInput")).Return(&dynamodb.UpdateItemOutput{}, nil).Once()
+
 		// Mock GetWallet calls
 		senderWalletAV, _ := attributevalue.MarshalMap(senderWallet)
-		mockClient.On("GetItem", mock.Anything, mock.Anything).Once().Return(&dynamodb.GetItemOutput{Item: senderWalletAV}, nil)
+		mockClient.On("GetItem", mock.Anything, mock.Anything).Return(&dynamodb.GetItemOutput{Item: senderWalletAV}, nil).Once()
 		receiverWalletAV, _ := attributevalue.MarshalMap(receiverWallet)
-		mockClient.On("GetItem", mock.Anything, mock.Anything).Once().Return(&dynamodb.GetItemOutput{Item: receiverWalletAV}, nil)
+		mockClient.On("GetItem", mock.Anything, mock.Anything).Return(&dynamodb.GetItemOutput{Item: receiverWalletAV}, nil).Once()
 
-		// Mock TransactWriteItems call
-		mockClient.On("TransactWriteItems", mock.Anything, mock.Anything).Return(&dynamodb.TransactWriteItemsOutput{}, nil)
+		// Mock TransactWriteItems call for settlement
+		mockClient.On("TransactWriteItems", mock.Anything, mock.AnythingOfType("*dynamodb.TransactWriteItemsInput")).Return(&dynamodb.TransactWriteItemsOutput{}, nil).Once()
 
 		err := store.SettleTransaction(context.Background(), tx)
 
@@ -41,8 +44,10 @@ func TestSettleTransaction(t *testing.T) {
 
 	t.Run("Get Sender Wallet Fails", func(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
-		store := &Store{Client: mockClient}
+		store := &Store{Client: mockClient, TransactionsTableName: "transactions"}
 
+		// This test checks what happens if the lock is acquired but the subsequent GetWallet fails.
+		mockClient.On("UpdateItem", mock.Anything, mock.AnythingOfType("*dynamodb.UpdateItemInput")).Return(&dynamodb.UpdateItemOutput{}, nil).Once()
 		mockClient.On("GetItem", mock.Anything, mock.Anything).Return(nil, errors.New("get wallet failed"))
 
 		err := store.SettleTransaction(context.Background(), tx)
@@ -54,8 +59,9 @@ func TestSettleTransaction(t *testing.T) {
 
 	t.Run("Get Receiver Wallet Fails", func(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
-		store := &Store{Client: mockClient}
+		store := &Store{Client: mockClient, TransactionsTableName: "transactions", WalletsTableName: "wallets"}
 
+		mockClient.On("UpdateItem", mock.Anything, mock.AnythingOfType("*dynamodb.UpdateItemInput")).Return(&dynamodb.UpdateItemOutput{}, nil).Once()
 		senderWalletAV, _ := attributevalue.MarshalMap(senderWallet)
 		mockClient.On("GetItem", mock.Anything, mock.Anything).Once().Return(&dynamodb.GetItemOutput{Item: senderWalletAV}, nil)
 		mockClient.On("GetItem", mock.Anything, mock.Anything).Once().Return(nil, errors.New("get wallet failed"))
@@ -71,6 +77,7 @@ func TestSettleTransaction(t *testing.T) {
 		mockClient := new(mocks.DynamoDBAPI)
 		store := &Store{Client: mockClient, TransactionsTableName: "transactions", WalletsTableName: "wallets", LedgerTableName: "ledger"}
 
+		mockClient.On("UpdateItem", mock.Anything, mock.AnythingOfType("*dynamodb.UpdateItemInput")).Return(&dynamodb.UpdateItemOutput{}, nil).Once()
 		senderWalletAV, _ := attributevalue.MarshalMap(senderWallet)
 		mockClient.On("GetItem", mock.Anything, mock.Anything).Once().Return(&dynamodb.GetItemOutput{Item: senderWalletAV}, nil)
 		receiverWalletAV, _ := attributevalue.MarshalMap(receiverWallet)

@@ -7,7 +7,7 @@ import (
 
 // ToApiTransaction converts a domain Transaction model to an API Transaction model.
 func ToApiTransaction(tx *models.Transaction) *api.Transaction {
-	status := api.TransactionStatus(tx.Status)
+	status := toApiStatus(tx.Status)
 	return &api.Transaction{
 		Id:          &tx.Id,
 		FromUserId:  &tx.FromUserId,
@@ -64,6 +64,15 @@ func ToApiLedgerEntry(entry *models.LedgerEntry) *api.LedgerEntry {
 		Description:   &entry.Description,
 		Timestamp:     &entry.Timestamp,
 	}
+}
+
+// toApiStatus converts an internal domain status to a public API status.
+// It hides internal statuses like 'WORKING' from the API consumer.
+func toApiStatus(status models.TransactionStatus) api.TransactionStatus {
+	if status == models.WORKING {
+		return api.RESERVED
+	}
+	return api.TransactionStatus(status)
 }
 
 func ToDomainTransaction(tx *api.Transaction) *models.Transaction {

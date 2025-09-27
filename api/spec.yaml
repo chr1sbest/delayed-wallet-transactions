@@ -5,9 +5,27 @@ info:
   description: "An API for a delayed wallet system, allowing for transactions to be scheduled and processed asynchronously."
 
 paths:
+  /transactions/{transactionId}/notify-settlement:
+    post:
+      summary: Notify of transaction settlement
+      description: An internal endpoint for the settlement service to notify the API that a transaction has been settled.
+      operationId: NotifySettlement
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Notification accepted.
+        '404':
+          description: Transaction not found.
+
   /transactions:
     post:
-      summary: "Schedule a new transaction"
+      summary: Schedule a new transaction
       operationId: scheduleTransaction
       requestBody:
         required: true

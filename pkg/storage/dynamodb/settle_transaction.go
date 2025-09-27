@@ -2,6 +2,7 @@ package dynamodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,11 +11,62 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/chris/delayed-wallet-transactions/pkg/models"
+	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 	"github.com/google/uuid"
 )
 
 // SettleTransaction performs the final atomic settlement of a transaction.
+// It uses a two-step process to ensure idempotency.
+// 1. Attempt to acquire a lock by setting the transaction status to WORKING.
+// 2. If the lock is acquired, proceed with the settlement.
+// This prevents a transaction from being processed multiple times if the lambda is invoked more than once for the same SQS message.
 func (s *Store) SettleTransaction(ctx context.Context, tx *models.Transaction) error {
+	// Step 1: Attempt to acquire a lock on the transaction by setting its status to WORKING.
+	// This is an atomic operation that will only succeed if the current status is RESERVED.
+	if err := s.acquireTransactionLock(ctx, tx.Id); err != nil {
+		if errors.Is(err, storage.ErrTransactionAlreadyProcessing) {
+			// Another process has already acquired the lock, so we can safely exit.
+			return nil
+		}
+		return fmt.Errorf("failed to acquire transaction lock: %w", err)
+	}
+
+	// Step 2: Proceed with the settlement logic.
+	return s.executeSettlement(ctx, tx)
+}
+
+// acquireTransactionLock atomically updates the transaction status from RESERVED to WORKING.
+func (s *Store) acquireTransactionLock(ctx context.Context, txID string) error {
+	input := &dynamodb.UpdateItemInput{
+		TableName: aws.String(s.TransactionsTableName),
+		Key: map[string]types.AttributeValue{
+			"id": &types.AttributeValueMemberS{Value: txID},
+		},
+		UpdateExpression:    aws.String("SET #status = :working_status"),
+		ConditionExpression: aws.String("#status = :reserved_status"),
+		ExpressionAttributeNames: map[string]string{
+			"#status": "status",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":working_status":  &types.AttributeValueMemberS{Value: string(models.WORKING)},
+			":reserved_status": &types.AttributeValueMemberS{Value: string(models.RESERVED)},
+		},
+	}
+
+	_, err := s.Client.UpdateItem(ctx, input)
+	if err != nil {
+		var condCheckFailed *types.ConditionalCheckFailedException
+		if errors.As(err, &condCheckFailed) {
+			return storage.ErrTransactionAlreadyProcessing
+		}
+		return fmt.Errorf("failed to update transaction status to WORKING: %w", err)
+	}
+
+	return nil
+}
+
+// executeSettlement performs the actual financial settlement of the transaction.
+func (s *Store) executeSettlement(ctx context.Context, tx *models.Transaction) error {
 	// 1. Get the current state of both wallets for optimistic locking.
 	senderWallet, err := s.GetWallet(ctx, tx.FromUserId)
 	if err != nil {
@@ -65,9 +117,9 @@ func (s *Store) SettleTransaction(ctx context.Context, tx *models.Transaction) e
 	if err != nil {
 		return fmt.Errorf("failed to marshal completed status: %w", err)
 	}
-	approvedStatusAV, err := attributevalue.Marshal(models.APPROVED)
+	workingStatusAV, err := attributevalue.Marshal(models.WORKING)
 	if err != nil {
-		return fmt.Errorf("failed to marshal approved status: %w", err)
+		return fmt.Errorf("failed to marshal working status: %w", err)
 	}
 	nowAV, err := attributevalue.Marshal(now)
 	if err != nil {
@@ -135,13 +187,13 @@ func (s *Store) SettleTransaction(ctx context.Context, tx *models.Transaction) e
 					TableName: aws.String(s.TransactionsTableName),
 					Key:       map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: tx.Id}},
 					UpdateExpression:    aws.String("SET #status = :completed_status, updated_at = :now"),
-					ConditionExpression: aws.String("#status = :approved_status"),
+					ConditionExpression: aws.String("#status = :working_status"),
 					ExpressionAttributeNames: map[string]string{
 						"#status": "status",
 					},
 					ExpressionAttributeValues: map[string]types.AttributeValue{
 						":completed_status": completedStatusAV,
-						":approved_status":  approvedStatusAV,
+						":working_status":  workingStatusAV,
 						":now":              nowAV,
 					},
 				},

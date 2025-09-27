@@ -14,6 +14,7 @@ import (
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
 	"github.com/chris/delayed-wallet-transactions/pkg/storage"
 	"github.com/chris/delayed-wallet-transactions/pkg/websockets"
+	"github.com/oapi-codegen/runtime/types"
 )
 
 // TransactionsHandler holds the dependencies for transaction-related handlers.
@@ -29,7 +30,6 @@ func NewTransactionsHandler(store storage.ApiStore, scheduler scheduler.CronSche
 }
 
 // ScheduleTransaction handles the logic for scheduling a new transaction.
-
 func (h *TransactionsHandler) ScheduleTransaction(w http.ResponseWriter, r *http.Request) {
 	var newTx api.NewTransaction
 	if err := json.NewDecoder(r.Body).Decode(&newTx); err != nil {
@@ -44,7 +44,7 @@ func (h *TransactionsHandler) ScheduleTransaction(w http.ResponseWriter, r *http
 		if errors.Is(err, storage.ErrInsufficientFunds) {
 			http.Error(w, "Insufficient funds", http.StatusUnprocessableEntity)
 		} else {
-						log.Printf("ERROR: Failed to create transaction in store: %v\n", err)
+			log.Printf("ERROR: Failed to create transaction in store: %v\n", err)
 			http.Error(w, fmt.Sprintf("Failed to schedule transaction: %v", err), http.StatusInternalServerError)
 		}
 		return
@@ -61,14 +61,12 @@ func (h *TransactionsHandler) ScheduleTransaction(w http.ResponseWriter, r *http
 		}
 	}
 
-	go func() {
-		// Get the latest wallet balance.
-		wallet, err := h.Store.GetWallet(context.Background(), createdTx.FromUserId)
-		if err != nil {
-			log.Printf("ERROR: failed to get wallet for websocket message: %v", err)
-			return
-		}
-
+	// Get the latest wallet balance to update the sender via WebSocket.
+	wallet, err := h.Store.GetWallet(r.Context(), createdTx.FromUserId)
+	if err != nil {
+		log.Printf("ERROR: failed to get wallet for websocket message: %v", err)
+		// Do not fail the whole request if the websocket message fails.
+	} else {
 		msg := websockets.Message{
 			Type: websockets.MessageTypeWalletUpdate,
 			Payload: websockets.WalletUpdatePayload{
@@ -78,10 +76,10 @@ func (h *TransactionsHandler) ScheduleTransaction(w http.ResponseWriter, r *http
 				NewBalance:    wallet.Balance,
 			},
 		}
-		if err := h.Publisher.Publish(context.Background(), msg); err != nil {
+		if err := h.Publisher.Publish(r.Context(), msg); err != nil {
 			log.Printf("ERROR: failed to publish websocket message: %v", err)
 		}
-	}()
+	}
 
 	// Map the domain model response back to the API model and respond.
 	apiTx := mapping.ToApiTransaction(createdTx)
@@ -118,6 +116,44 @@ func (h *TransactionsHandler) CancelTransactionById(w http.ResponseWriter, r *ht
 		}
 		http.Error(w, fmt.Sprintf("Failed to cancel transaction: %v", err), http.StatusInternalServerError)
 		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// NotifySettlement handles the internal callback after a transaction is settled.
+func (h *TransactionsHandler) NotifySettlement(w http.ResponseWriter, r *http.Request, transactionId types.UUID) {
+	// This handler is called internally, so we use a background context.
+	ctx := context.Background()
+
+	// 1. Get the settled transaction details.
+	tx, err := h.Store.GetTransaction(ctx, transactionId.String())
+	if err != nil {
+		http.Error(w, "Transaction not found", http.StatusNotFound)
+		return
+	}
+
+	// 2. Get the recipient's latest wallet state.
+	toWallet, err := h.Store.GetWallet(ctx, tx.ToUserId)
+	if err != nil {
+		log.Printf("ERROR: failed to get recipient's wallet for websocket message: %v", err)
+		http.Error(w, "Failed to get recipient wallet", http.StatusInternalServerError)
+		return
+	}
+
+	// 3. Publish a WebSocket message to the recipient.
+	// The sender was already notified when the transaction was created.
+	toMsg := websockets.Message{
+		Type: websockets.MessageTypeWalletUpdate,
+		Payload: websockets.WalletUpdatePayload{
+			UserID:        tx.ToUserId,
+			TransactionID: tx.Id,
+			Change:        tx.Amount,
+			NewBalance:    toWallet.Balance,
+		},
+	}
+	if err := h.Publisher.Publish(ctx, toMsg); err != nil {
+		log.Printf("ERROR: failed to publish websocket message to recipient: %v", err)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

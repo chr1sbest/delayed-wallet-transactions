@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for TransactionStatus.
@@ -108,6 +109,9 @@ type ServerInterface interface {
 	// Get a transaction by its ID
 	// (GET /transactions/{transactionId})
 	GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId string)
+	// Notify of transaction settlement
+	// (POST /transactions/{transactionId}/notify-settlement)
+	NotifySettlement(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID)
 	// List all transactions for a user
 	// (GET /users/{userId}/transactions)
 	ListTransactionsByUserId(w http.ResponseWriter, r *http.Request, userId string)
@@ -150,6 +154,12 @@ func (_ Unimplemented) CancelTransactionById(w http.ResponseWriter, r *http.Requ
 // Get a transaction by its ID
 // (GET /transactions/{transactionId})
 func (_ Unimplemented) GetTransactionById(w http.ResponseWriter, r *http.Request, transactionId string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Notify of transaction settlement
+// (POST /transactions/{transactionId}/notify-settlement)
+func (_ Unimplemented) NotifySettlement(w http.ResponseWriter, r *http.Request, transactionId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -274,6 +284,31 @@ func (siw *ServerInterfaceWrapper) GetTransactionById(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetTransactionById(w, r, transactionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// NotifySettlement operation middleware
+func (siw *ServerInterfaceWrapper) NotifySettlement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "transactionId" -------------
+	var transactionId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "transactionId", chi.URLParam(r, "transactionId"), &transactionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "transactionId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.NotifySettlement(w, r, transactionId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -510,6 +545,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/transactions/{transactionId}", wrapper.GetTransactionById)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/transactions/{transactionId}/notify-settlement", wrapper.NotifySettlement)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/users/{userId}/transactions", wrapper.ListTransactionsByUserId)

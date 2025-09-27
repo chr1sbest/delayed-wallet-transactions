@@ -42,7 +42,7 @@ func TestScheduleTransaction_Success(t *testing.T) {
 
 		// 2. Mock expectations
 		mockStorage.On("CreateTransaction", mock.Anything, mock.AnythingOfType("*models.Transaction")).Return(createdTx, nil)
-		mockStorage.On("GetWallet", mock.Anything, "user1").Return(&models.Wallet{Balance: 1000}, nil)
+		mockStorage.On("GetWallet", mock.Anything, "user1").Return(&models.Wallet{Balance: 1000}, nil).Maybe()
 		mockScheduler.On("ScheduleTransaction", mock.Anything, mock.AnythingOfType("*api.Transaction"), time.Duration(0)).Return(nil)
 
 		// 3. Execute
@@ -83,7 +83,7 @@ func TestScheduleTransaction_Success(t *testing.T) {
 
 		// 2. Mock expectations
 		mockStorage.On("CreateTransaction", mock.Anything, mock.AnythingOfType("*models.Transaction")).Return(createdTx, nil)
-		mockStorage.On("GetWallet", mock.Anything, "user1").Return(&models.Wallet{Balance: 1000}, nil)
+		mockStorage.On("GetWallet", mock.Anything, "user1").Return(&models.Wallet{Balance: 1000}, nil).Maybe()
 		mockScheduler.On("ScheduleTransaction", mock.Anything, mock.AnythingOfType("*api.Transaction"), time.Duration(delay)*time.Second).Return(nil)
 
 		// 3. Execute
