@@ -1,51 +1,63 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { webSocketClient } from '@/client/websocket';
+import { Wallet } from '@/client';
 
 interface WebSocketHandlerProps {
+  wallets: Wallet[];
   onWalletUpdate: () => void;
+  onTransactionUpdate: () => void;
 }
 
-export function WebSocketHandler({ onWalletUpdate }: WebSocketHandlerProps) {
+export function WebSocketHandler({ wallets, onWalletUpdate, onTransactionUpdate }: WebSocketHandlerProps) {
+  const processedIds = useRef(new Set<string>());
   useEffect(() => {
-    // Connect to WebSocket and subscribe to messages
     webSocketClient.connect();
 
-    const unsubscribe = webSocketClient.subscribe((message) => {
-      console.log('WebSocket message received:', message);
-
+    const handleWalletUpdate = (message: any) => {
       if (message.type === 'walletUpdate') {
-        // Always refetch wallet data to update the UI
-        onWalletUpdate();
+        onWalletUpdate(); // Keep this to refresh wallet balances
 
-        const { change, new_balance } = message.payload;
+        const { user_id, transaction_id, change, new_balance } = message.payload;
 
-        // Only show a notification if it's not a deduction (i.e., change is positive or zero)
-        if (change >= 0) {
-          const amount = Math.abs(change);
+        if (transaction_id) {
+          onTransactionUpdate(); // Refresh transaction list if a tx is involved
+        }
 
-          toast.info(`Wallet Updated: +${amount} units`, {
-            description: `New balance is ${new_balance} units.`,
-            style: {
-              backgroundColor: 'hsl(142.1 76.2% 36.3%)', // A green color for additions
-              color: 'white',
-              border: '1px solid hsl(142.1 76.2% 36.3%)',
-            },
+        // Deduplication check
+        if (transaction_id && processedIds.current.has(transaction_id)) {
+          console.log(`Duplicate message received for transaction ${transaction_id}. Ignoring.`);
+          return;
+        }
+
+        if (transaction_id) {
+          processedIds.current.add(transaction_id);
+          // Remove the ID after a short period to allow for legitimate future updates
+          setTimeout(() => {
+            processedIds.current.delete(transaction_id);
+          }, 2000); // 2-second deduplication window
+        }
+
+        const wallet = wallets.find((w) => w.user_id === user_id);
+        const ownerName = wallet ? wallet.name : 'Unknown';
+
+        if (change > 0) {
+          toast.success(`${ownerName}'s wallet was credited!`, {
+            description: `+${change} units. New balance: ${new_balance} units.`,
+            icon: <div style={{ color: 'oklch(var(--chart-4))' }}>✓</div>,
           });
         }
       }
-    });
+    };
 
-    // Cleanup on component unmount
+    const unsubscribe = webSocketClient.subscribe(handleWalletUpdate);
+
     return () => {
       unsubscribe();
-      // We can leave the connection open or disconnect if preferred
-      // webSocketClient.disconnect();
     };
-  }, [onWalletUpdate]);
+  }, [onWalletUpdate, onTransactionUpdate, wallets]);
 
-  // This component does not render anything to the DOM
   return null;
 }

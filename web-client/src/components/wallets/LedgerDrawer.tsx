@@ -39,22 +39,33 @@ export function LedgerDrawer() {
           <DrawerTitle>Recent Ledger Entries</DrawerTitle>
           <DrawerDescription>Showing the most recent ledger activities.</DrawerDescription>
         </DrawerHeader>
-        <div className="p-4">
+        <div className="px-4 max-h-[60vh] overflow-y-auto">
           {isLoading ? (
-            <p>Loading ledger...</p>
+            <p className="text-center">Loading ledger...</p>
           ) : ledgerEntries.length > 0 ? (
-            <ul className="space-y-2">
-              {ledgerEntries.map((entry) => (
-                <li key={entry.entry_id} className="border-b pb-2 text-sm">
-                  <p><strong>Tx ID:</strong> {entry.transaction_id}</p>
-                  <p><strong>Account:</strong> {entry.account_id}</p>
-                  <p><strong>Description:</strong> {entry.description}</p>
-                  <p><strong>Time:</strong> {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'N/A'}</p>
-                </li>
-              ))}
+            <ul className="space-y-4">
+              {ledgerEntries.map((entry) => {
+                const isCredit = entry.credit && entry.credit > 0;
+                const amount = isCredit ? entry.credit : entry.debit;
+                const amountColor = isCredit ? 'text-green-500' : 'text-red-500';
+                const amountPrefix = isCredit ? '+' : '-';
+
+                return (
+                  <li key={entry.entry_id} className="border-b pb-3 text-sm flex items-center gap-4">
+                    <p className={`font-bold text-lg w-24 text-right ${amountColor}`}>
+                      {amountPrefix}{amount}
+                    </p>
+                    <div>
+                      <p className="font-semibold truncate">{entry.description}</p>
+                      <p className="text-xs text-gray-500">Tx: {entry.transaction_id?.substring(0, 8)}...</p>
+                      <p className="text-xs text-gray-500">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'N/A'}</p>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
-            <p>No ledger entries found.</p>
+            <p className="text-center">No ledger entries found.</p>
           )}
         </div>
       </DrawerContent>

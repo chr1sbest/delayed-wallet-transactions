@@ -1,4 +1,5 @@
-const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'wss://1ex23kq855.execute-api.us-west-2.amazonaws.com/ws';
+// const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:3000/ws';
+const WEBSOCKET_URL = 'wss://1ex23kq855.execute-api.us-west-2.amazonaws.com/ws';
 
 type MessageCallback = (message: any) => void;
 

@@ -3,6 +3,7 @@ package dynamodb
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -14,22 +15,35 @@ import (
 type WebSocketConnection struct {
 	ConnectionID string `dynamodbav:"connection_id"`
 	PK           string `dynamodbav:"pk"`
+	TTL          int64  `dynamodbav:"ttl,omitempty"`
 }
 
-// AddConnection saves a new WebSocket connection ID to the database.
+// AddConnection saves a new WebSocket connection ID to the database idempotently.
 func (s *Store) AddConnection(ctx context.Context, connectionID string) error {
-	conn := WebSocketConnection{ConnectionID: connectionID, PK: "connections"}
-	item, err := attributevalue.MarshalMap(conn)
-	if err != nil {
-		return fmt.Errorf("failed to marshal connection: %w", err)
-	}
-
-	_, err = s.Client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: aws.String(s.WebsocketConnectionsTableName),
-		Item:      item,
+	key, err := attributevalue.MarshalMap(map[string]string{
+		"connection_id": connectionID,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to put item: %w", err)
+		return fmt.Errorf("failed to marshal connection key: %w", err)
+	}
+
+	ttl := time.Now().Add(24 * time.Hour).Unix()
+
+	_, err = s.Client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName:        aws.String(s.WebsocketConnectionsTableName),
+		Key:              key,
+		UpdateExpression: aws.String("SET pk = :pk, #ttl = :ttl"),
+		ExpressionAttributeNames: map[string]string{
+			"#ttl": "ttl",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":pk":  &types.AttributeValueMemberS{Value: "connections"},
+			":ttl": &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", ttl)},
+		},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to update item: %w", err)
 	}
 
 	return nil

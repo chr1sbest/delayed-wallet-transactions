@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -70,9 +70,16 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
   const [isLoading, setIsLoading] = useState(false);
   const [transactionToCancel, setTransactionToCancel] = useState<Transaction | null>(null);
 
+  useEffect(() => {
+    // If the transaction view is active, refresh the list when wallet data changes.
+    if (view === 'transactions') {
+      showTransactions();
+    }
+  }, [allWallets]); // Dependency on allWallets will trigger this when parent data refreshes
+
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(newTransactionSchema),
-    defaultValues: { to_user_id: '', amount: '0', delay_seconds: '0' },
+    defaultValues: { to_user_id: '', amount: '', delay_seconds: '' },
   });
 
   const destinationWallets = allWallets.filter(w => w.user_id && w.user_id !== sourceWallet.user_id);
@@ -118,7 +125,7 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
 
     try {
       await DefaultService.scheduleTransaction(transactionData);
-      toast.success('Transaction scheduled successfully!');
+            toast.success('Transaction scheduled successfully!');
       onOpenChange(false);
       onTransactionScheduled();
     } catch (err) {
@@ -187,8 +194,8 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
                   </FormItem>
                 )}
               />
-              <FormField control={form.control} name="amount" render={({ field }) => <FormItem><FormLabel>Amount</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>} />
-              <FormField control={form.control} name="delay_seconds" render={({ field }) => <FormItem><FormLabel>Delay (seconds)</FormLabel><FormControl><Input type="number" placeholder="0-900" {...field} /></FormControl><FormMessage /></FormItem>} />
+              <FormField control={form.control} name="amount" render={({ field }) => <FormItem><FormLabel>Amount</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>} />
+              <FormField control={form.control} name="delay_seconds" render={({ field }) => <FormItem><FormLabel>Delay (seconds)</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>} />
               <div className="flex justify-between">
                 <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? 'Scheduling...' : 'Schedule Transaction'}</Button>
                 <Button type="button" variant="outline" onClick={showTransactions}>Outgoing Transactions</Button>
@@ -202,7 +209,7 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
             {isLoading ? (
               <p>Loading transactions...</p>
             ) : transactions.length > 0 ? (
-              <ul className="space-y-2">
+              <ul className="space-y-2 max-h-60 overflow-y-auto">
                 {transactions.map(tx => (
                   <li key={tx.id} className="flex justify-between items-center border-b pb-2 text-sm">
                     <div>

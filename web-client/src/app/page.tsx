@@ -10,7 +10,8 @@ import { WalletList } from '@/components/wallets/WalletList';
 import { WebSocketHandler } from '@/components/wallets/WebSocketHandler';
 
 // Configure the API client base URL
-OpenAPI.BASE = 'http://localhost:8080';
+// OpenAPI.BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+OpenAPI.BASE = 'https://n7d6wysyal.execute-api.us-west-2.amazonaws.com/api';
 
 export default function HomePage() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -37,7 +38,7 @@ export default function HomePage() {
 
   return (
     <main className="container mx-auto p-8">
-      <WebSocketHandler onWalletUpdate={fetchWallets} />
+      <WebSocketHandler wallets={wallets} onWalletUpdate={fetchWallets} onTransactionUpdate={fetchWallets} />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Wallets</h1>
         <LedgerDrawer />
