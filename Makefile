@@ -1,7 +1,7 @@
 # This file uses go run to execute mockery, which ensures that the version
 # specified in tools.go and go.mod is used, providing reproducible builds.
 
-.PHONY: mocks generate build local deploy-infra-dev
+.PHONY: mocks generate build local deploy-infra
 
 # All directories under /cmd
 LAMBDA_DIRS := $(shell find cmd -mindepth 1 -maxdepth 1 -type d)
@@ -13,9 +13,9 @@ mocks:
 	@go run github.com/vektra/mockery/v2 --name=DynamoDBAPI --dir=./pkg/storage/dynamodb --output=./pkg/storage/dynamodb/mocks --outpkg=mocks --case=underscore
 	@echo "Mocks generated successfully."
 
-############################################
-### Deploying to dev environment via SAM ###
-############################################
+#########################
+### Deploying via SAM ###
+#########################
 
 build:
 	@echo "Building SAM application..."
@@ -28,9 +28,9 @@ local: build
 	@(export AWS_PROFILE=default && sam local start-api)
 
 # Deploy new infrastructure with SAM
-deploy-infra-dev: build
-	@echo "Deploying infrastructure to 'dev' environment..."
-	sam deploy --stack-name delayed-wallet-dev --capabilities CAPABILITY_NAMED_IAM --parameter-overrides Environment=dev --resolve-s3 --no-confirm-changeset
+deploy-infra: build
+	@echo "Deploying infrastructure..."
+	sam deploy --profile default
 
 .PHONY: generate
 generate:
@@ -45,5 +45,5 @@ help:
 	@echo "  make generate        - Generate server code from OpenAPI spec"
 	@echo "  make build           - Build the SAM application"
 	@echo "  make local           - Run the API locally with hot-reloading"
-	@echo "  make deploy-infra-dev - Deploy the stack to the 'dev' environment"
+	@echo "  make deploy-infra     - Deploy the stack using configuration from samconfig.toml"
 	@echo "  make help            - Show this help message"

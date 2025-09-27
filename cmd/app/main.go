@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -12,11 +13,13 @@ import (
 	chiadapter "github.com/awslabs/aws-lambda-go-api-proxy/chi"
 	"github.com/chris/delayed-wallet-transactions/pkg/api"
 	"github.com/chris/delayed-wallet-transactions/pkg/handlers"
+	customMiddleware "github.com/chris/delayed-wallet-transactions/pkg/middleware"
 	"github.com/chris/delayed-wallet-transactions/pkg/scheduler"
 	dydbstore "github.com/chris/delayed-wallet-transactions/pkg/storage/dynamodb"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
+	"github.com/rs/cors"
 	"github.com/swaggest/swgui/v5emb"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -35,7 +38,7 @@ func main() {
 	sqsQueueURL := getEnv("SQS_QUEUE_URL", "")
 
 	// Load the AWS SDK configuration.
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile("backendbest"))
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile("default"))
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
@@ -54,7 +57,20 @@ func main() {
 
 	// Create a new Chi router and add middleware.
 	chiRouter := chi.NewRouter()
-	chiRouter.Use(middleware.Logger)
+	// Set up CORS middleware.
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300, // Maximum value not ignored by any major browsers
+	})
+	chiRouter.Use(c.Handler)
+
+	// Set up structured logging.
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	chiRouter.Use(customMiddleware.NewStructuredLogger(logger))
 	chiRouter.Use(middleware.Recoverer)
 	chiRouter.Mount("/", apiRouter)
 

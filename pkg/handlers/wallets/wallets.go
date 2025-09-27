@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"log"
 	"strings"
 	"time"
 
@@ -67,6 +68,7 @@ func (h *WalletsHandler) DeleteWallet(w http.ResponseWriter, r *http.Request, us
 func (h *WalletsHandler) ListWallets(w http.ResponseWriter, r *http.Request) {
 	domainWallets, err := h.Store.ListWallets(r.Context())
 	if err != nil {
+		log.Printf("ERROR: Failed to list wallets from store: %v\n", err)
 		http.Error(w, fmt.Sprintf("Failed to retrieve wallets: %v", err), http.StatusInternalServerError)
 		return
 	}

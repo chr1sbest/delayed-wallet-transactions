@@ -4,12 +4,6 @@ Description: >
   SAM template for the Delayed Wallet Transactions service, including Lambda functions, API Gateway, DynamoDB tables, and an SQS queue.
 
 Parameters:
-  Environment:
-    Type: String
-    Default: dev
-    AllowedValues:
-      - dev
-      - prod
   BillingMode:
     Type: String
     Description: Specifies the billing mode for DynamoDB tables.
@@ -23,8 +17,8 @@ Resources:
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Sub "DelayedTransactionsApi-${Environment}"
-      StageName: !Ref Environment
+      Name: "DelayedTransactionsApi"
+      StageName: api
 
   # Lambda Functions
   ApiFunction:
@@ -32,7 +26,7 @@ Resources:
     Metadata:
       BuildMethod: go1.x
     Properties:
-      FunctionName: !Sub "DelayedTransactions-ApiFunction-${Environment}"
+      FunctionName: "DelayedTransactions-ApiFunction"
       CodeUri: ./cmd/app
       Handler: bootstrap
       Runtime: provided.al2023
@@ -55,7 +49,6 @@ Resources:
             RestApiId: !Ref ApiGateway
       Environment:
         Variables:
-          ENVIRONMENT: !Ref Environment
           DYNAMODB_WALLETS_TABLE_NAME: !Ref WalletsTable
           DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
           DYNAMODB_LEDGER_TABLE_NAME: !Ref LedgerTable
@@ -66,7 +59,7 @@ Resources:
     Metadata:
       BuildMethod: go1.x
     Properties:
-      FunctionName: !Sub "DelayedTransactions-ReconciliationLambda-${Environment}"
+      FunctionName: "DelayedTransactions-ReconciliationLambda"
       CodeUri: ./cmd/reconciliation_lambda
       Handler: bootstrap
       Runtime: provided.al2023
@@ -83,7 +76,6 @@ Resources:
             Schedule: "rate(5 minutes)"
       Environment:
         Variables:
-          ENVIRONMENT: !Ref Environment
           DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
           SQS_QUEUE_URL: !Ref TransactionQueue
 
@@ -92,7 +84,7 @@ Resources:
     Metadata:
       BuildMethod: go1.x
     Properties:
-      FunctionName: !Sub "DelayedTransactions-SettlementLambda-${Environment}"
+      FunctionName: "DelayedTransactions-SettlementLambda"
       CodeUri: ./cmd/settlement_lambda
       Handler: bootstrap
       Runtime: provided.al2023
@@ -112,7 +104,6 @@ Resources:
             BatchSize: 1
       Environment:
         Variables:
-          ENVIRONMENT: !Ref Environment
           DYNAMODB_WALLETS_TABLE_NAME: !Ref WalletsTable
           DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
           DYNAMODB_LEDGER_TABLE_NAME: !Ref LedgerTable
@@ -121,7 +112,7 @@ Resources:
   WalletsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "DelayedTransactions-Wallets-${Environment}"
+      TableName: "DelayedWallets-Wallets"
       AttributeDefinitions:
         - AttributeName: user_id
           AttributeType: S
@@ -133,7 +124,7 @@ Resources:
   TransactionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "DelayedTransactions-Transactions-${Environment}"
+      TableName: "DelayedWallets-Transactions"
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
@@ -166,7 +157,7 @@ Resources:
   LedgerTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "DelayedTransactions-Ledger-${Environment}"
+      TableName: "DelayedWallets-Ledger"
       AttributeDefinitions:
         - AttributeName: entry_id
           AttributeType: S
@@ -192,13 +183,13 @@ Resources:
   TransactionQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "DelayedTransactions-TransactionQueue-${Environment}"
+      QueueName: "DelayedTransactions-TransactionQueue"
       VisibilityTimeout: 300
 
 Outputs:
   ApiUrl:
     Description: 'API URL'
-    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/api'
   WalletsTableName:
     Description: "The name of the Wallets DynamoDB table"
     Value: !Ref WalletsTable
