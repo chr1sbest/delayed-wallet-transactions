@@ -1,14 +1,20 @@
-# Delayed Wallet Transaction Service
+# Delayed Wallet Transactions
 
-This project is a Go-based API service for managing delayed wallet-to-wallet transactions. It is designed to be highly available, scalable, and strongly consistent, making it suitable for financial applications.
-
+## Goal
 The system allows users to schedule a transfer of funds to another user at a future time. The funds are reserved at the time of scheduling to prevent double-spending and are processed asynchronously.
 
-## System Design & Architecture
+### Cruxes
+1. **Consistency** - Preventing Double Spend
+2. **Scale** - 1M Scheduled Payments at Once
+3. **Delay** - Asynchronous Processing of Payments
+4. **Delivery** - Asynchronous Delivery of Events to the Client
 
+![System Design](DelayedWallet.png)
+
+## Architecture
 This service is built using a modern, event-driven architecture on AWS. The main components are:
 
-- **API Service (`cmd/app`):** A Go-based HTTP server that exposes the primary API for creating and viewing transactions and wallets. It is responsible for initial request validation and authentication.
+- **Scheduler Service (`cmd/app`):** A Go-based HTTP server that exposes the primary API for creating and viewing transactions and wallets. It is responsible for initial request validation and authentication.
 
 - **DynamoDB Tables:** A set of three purpose-built tables form the core of our data layer:
   - **`Wallets`**: Stores the current state of each user's wallet, including their available `balance`, `reserved` funds, and a `version` number for optimistic locking.
@@ -81,9 +87,9 @@ Ensuring financial correctness in a distributed system is the primary challenge.
     ```
     The server will start on port 8080 by default.
 
-## API Documentation
+## Scheduler API Documentation
 
-The API is defined using the OpenAPI 3.0 standard in `api/spec.yaml`.
+The Scheduler API is defined using the OpenAPI 3.0 standard in `api/spec.yaml`.
 
 ### Endpoints
 
