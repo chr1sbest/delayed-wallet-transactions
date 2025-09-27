@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import { Wallet, DefaultService, ApiError, OpenAPI } from '@/client';
 import { LedgerDrawer } from '@/components/wallets/LedgerDrawer';
 import { CreateWalletDialog } from '@/components/wallets/CreateWalletDialog';
 import { NewTransactionDialog } from '@/components/wallets/NewTransactionDialog';
 import { WalletList } from '@/components/wallets/WalletList';
+import { WebSocketHandler } from '@/components/wallets/WebSocketHandler';
 
 // Configure the API client base URL
 OpenAPI.BASE = 'http://localhost:8080';
@@ -16,26 +18,26 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
 
-  const fetchWallets = async () => {
+  const fetchWallets = useCallback(async () => {
     try {
-      setIsLoading(true);
       const walletList = await DefaultService.listWallets();
       setWallets(walletList);
       setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? `API Error: ${err.message}` : 'An unexpected error occurred.');
       console.error(err);
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, []); // Empty dependency array creates a stable function
 
   useEffect(() => {
-    fetchWallets();
-  }, []);
+    // Initial fetch with loading indicator
+    setIsLoading(true);
+    fetchWallets().finally(() => setIsLoading(false));
+  }, [fetchWallets]);
 
   return (
     <main className="container mx-auto p-8">
+      <WebSocketHandler onWalletUpdate={fetchWallets} />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Wallets</h1>
         <LedgerDrawer />
@@ -64,5 +66,3 @@ export default function HomePage() {
     </main>
   );
 }
-
-

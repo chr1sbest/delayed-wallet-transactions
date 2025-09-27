@@ -1,0 +1,69 @@
+asyncapi: '2.6.0'
+info:
+  title: Delayed Wallet WebSocket API
+  version: '1.0.0'
+  description: This API provides real-time updates for the delayed wallet system.
+
+servers:
+  production:
+    url: wss://1ex23kq855.execute-api.us-west-2.amazonaws.com/ws
+    protocol: wss
+    description: Deployed WebSocket API on AWS
+  development:
+    url: ws://localhost:8080/ws
+    protocol: ws
+    description: Local development server
+
+channels:
+  /:
+    subscribe:
+      summary: Receive messages from the server. The message type determines the payload.
+      message:
+        oneOf:
+          - $ref: '#/components/messages/WalletUpdate'
+
+components:
+  messages:
+    WalletUpdate:
+      name: walletUpdate
+      title: Wallet Update
+      summary: Informs the client about a change in their wallet balance.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WalletUpdateMessage'
+
+  schemas:
+    WalletUpdateMessage:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ["walletUpdate"]
+        payload:
+          $ref: '#/components/schemas/WalletUpdatePayload'
+      required:
+        - type
+        - payload
+
+    WalletUpdatePayload:
+      type: object
+      properties:
+        user_id:
+          type: string
+          description: The ID of the user whose wallet was updated.
+        transaction_id:
+          type: string
+          description: The ID of the transaction that caused the update.
+        change:
+          type: integer
+          format: int64
+          description: The amount by which the balance changed (can be negative).
+        new_balance:
+          type: integer
+          format: int64
+          description: The new total balance of the wallet after the change.
+      required:
+        - user_id
+        - transaction_id
+        - change
+        - new_balance
