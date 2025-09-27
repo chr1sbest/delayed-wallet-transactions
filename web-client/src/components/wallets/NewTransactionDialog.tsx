@@ -58,6 +58,12 @@ const CANCELLABLE_STATUSES: Array<Transaction['status']> = [
   Transaction.status.APPROVED,
 ];
 
+const NON_CANCELLABLE_STATUSES: Array<Transaction['status']> = [
+  Transaction.status.COMPLETED,
+  Transaction.status.REJECTED,
+  Transaction.status.FAILED,
+];
+
 export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenChange, onTransactionScheduled, updatedTransaction }: {
   sourceWallet: Wallet;
   allWallets: Wallet[];

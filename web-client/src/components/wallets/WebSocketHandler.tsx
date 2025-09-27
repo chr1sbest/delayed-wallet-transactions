@@ -35,9 +35,7 @@ export function WebSocketHandler({ wallets, onWalletUpdate, onTransactionUpdate 
         const { user_id, transaction_id, change, new_balance } = message.payload;
 
         if (transaction_id) {
-                    if (message.payload.transaction_id && message.payload.transaction_status) {
-            onTransactionUpdate({ id: message.payload.transaction_id, status: message.payload.transaction_status });
-          }
+          onTransactionUpdate({ id: transaction_id, status: Transaction.status.COMPLETED });
         }
 
         // Deduplication check
