@@ -9,8 +9,7 @@ import { WalletList } from '@/components/wallets/WalletList';
 import { WebSocketHandler } from '@/components/wallets/WebSocketHandler';
 
 // Configure the API client base URL
-// OpenAPI.BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-OpenAPI.BASE = 'https://n7d6wysyal.execute-api.us-west-2.amazonaws.com/api';
+OpenAPI.BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 export default function HomePage() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
