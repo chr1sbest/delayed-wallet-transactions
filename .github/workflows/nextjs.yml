@@ -1,4 +1,5 @@
 # Workflow for building and deploying the Next.js site to GitHub Pages
+# Cache buster: 1
 name: Deploy Next.js site to Pages
 
 on:
