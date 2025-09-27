@@ -172,7 +172,7 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="w-full max-w-lg">
         <DialogHeader>
           <DialogTitle>New Transaction from {sourceWallet.name}</DialogTitle>
           <DialogDescription>Balance: {sourceWallet.balance}</DialogDescription>
@@ -201,7 +201,7 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
               />
               <FormField control={form.control} name="amount" render={({ field }) => <FormItem><FormLabel>Amount</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>} />
               <FormField control={form.control} name="delay_seconds" render={({ field }) => <FormItem><FormLabel>Delay (seconds)</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>} />
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
                 <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? 'Scheduling...' : 'Schedule Transaction'}</Button>
                 <Button type="button" variant="outline" onClick={showTransactions}>Outgoing Transactions</Button>
               </div>
@@ -214,7 +214,7 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
             {isLoading ? (
               <p>Loading transactions...</p>
             ) : transactions.length > 0 ? (
-              <ul className="space-y-2 max-h-60 overflow-y-auto">
+              <ul className="space-y-2 max-h-[40vh] sm:max-h-60 overflow-y-auto">
                 {transactions.map(tx => (
                   <li key={tx.id} className="flex justify-between items-center border-b pb-2 text-sm">
                     <div>

@@ -52,7 +52,7 @@ export function LedgerDrawer() {
 
                 return (
                   <li key={entry.entry_id} className="border-b pb-3 text-sm flex items-center gap-4">
-                    <p className={`font-bold text-lg w-24 text-right ${amountColor}`}>
+                    <p className={`font-bold text-lg w-20 sm:w-24 text-right ${amountColor}`}>
                       {amountPrefix}{amount}
                     </p>
                     <div>
