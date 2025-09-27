@@ -15,8 +15,11 @@ vendor/
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# IDE-specific files
-.vscode/
+# IDEs and tools
+vscode/
+
+# AWS SAM
+.aws-sam/
 .idea/
 *.swp
 *.swo
