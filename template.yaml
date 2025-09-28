@@ -92,6 +92,7 @@ Resources:
         Variables:
           DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
           SQS_QUEUE_URL: !Ref TransactionQueue
+          API_HEARTBEAT_URL: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/api/health"
 
   SettlementLambda:
     Type: AWS::Serverless::Function

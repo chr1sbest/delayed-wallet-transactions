@@ -84,6 +84,14 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	chiRouter.Use(customMiddleware.NewStructuredLogger(logger))
 	chiRouter.Use(middleware.Recoverer)
+
+	// Health check endpoint
+	chiRouter.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
+
 	chiRouter.Mount("/", apiRouter)
 
 	// --- Add WebSocket endpoint for local development ---

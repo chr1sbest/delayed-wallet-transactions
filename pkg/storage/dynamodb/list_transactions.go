@@ -29,10 +29,10 @@ func (s *Store) GetStuckTransactions(ctx context.Context, maxAge time.Duration) 
 	input := &dynamodb.QueryInput{
 		TableName:              aws.String(s.TransactionsTableName),
 		IndexName:              aws.String(stuckTransactionGSI),
-		KeyConditionExpression: aws.String("#status = :status"),
-		FilterExpression:       aws.String("created_at < :cutoff"),
+		KeyConditionExpression: aws.String("#status = :status AND #createdAt < :cutoff"),
 		ExpressionAttributeNames: map[string]string{
-			"#status": "status",
+			"#status":    "status",
+			"#createdAt": "created_at",
 		},
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":status": &types.AttributeValueMemberS{Value: string(models.RESERVED)},
