@@ -18,7 +18,6 @@ export function WalletList({ wallets, onWalletClick }: WalletListProps) {
             onClick={() => onWalletClick(wallet)}
           >
             <h2 className="text-xl font-semibold mb-2">{wallet.name}</h2>
-            <p className="text-sm text-gray-500">User ID: {wallet.user_id}</p>
             <p className="text-lg font-mono mt-2">Balance: {wallet.balance}</p>
           </div>
         ))

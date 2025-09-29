@@ -25,7 +25,7 @@ dev: build
 	@echo "Starting reflex for watching Go files..."
 	@(export AWS_PROFILE=default && reflex -r "\.go$$" -R "\.aws-sam" -- sh -c "sam build") &
 	@echo "Starting local API using AWS_PROFILE=default..."
-	@(export AWS_PROFILE=default && sam local start-api)
+	@(export AWS_PROFILE=default && sam local start-api --port 4000)
 
 # Deploy new infrastructure with SAM
 deploy-infra: build

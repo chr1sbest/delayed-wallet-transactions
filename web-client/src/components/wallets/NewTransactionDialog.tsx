@@ -76,6 +76,7 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [transactionToCancel, setTransactionToCancel] = useState<Transaction | null>(null);
+  const [currentSourceWallet, setCurrentSourceWallet] = useState<Wallet>(sourceWallet);
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(newTransactionSchema),
@@ -83,6 +84,13 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
   });
 
   const destinationWallets = allWallets.filter(w => w.user_id && w.user_id !== sourceWallet.user_id);
+
+  useEffect(() => {
+    const updatedSource = allWallets.find(w => w.user_id === sourceWallet.user_id);
+    if (updatedSource) {
+      setCurrentSourceWallet(updatedSource);
+    }
+  }, [allWallets, sourceWallet.user_id]);
 
   const showTransactions = useCallback(async () => {
     if (!sourceWallet.user_id) return;
@@ -193,8 +201,8 @@ export function NewTransactionDialog({ sourceWallet, allWallets, isOpen, onOpenC
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-lg">
         <DialogHeader>
-          <DialogTitle>New Transaction from {sourceWallet.name}</DialogTitle>
-          <DialogDescription>Balance: {sourceWallet.balance}</DialogDescription>
+          <DialogTitle>New Transaction from {currentSourceWallet.name}</DialogTitle>
+          <DialogDescription>Balance: {currentSourceWallet.balance}</DialogDescription>
         </DialogHeader>
         
         {view === 'form' ? (

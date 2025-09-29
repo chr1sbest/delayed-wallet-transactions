@@ -7,6 +7,8 @@ import { CreateWalletDialog } from '@/components/wallets/CreateWalletDialog';
 import { NewTransactionDialog } from '@/components/wallets/NewTransactionDialog';
 import { WalletList } from '@/components/wallets/WalletList';
 import { WebSocketHandler } from '@/components/wallets/WebSocketHandler';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 
 export default function HomePage() {
@@ -45,10 +47,15 @@ export default function HomePage() {
       />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Wallets</h1>
-        <LedgerDrawer />
+        <div className="flex items-center space-x-2">
+          <Link href="https://github.com/chr1sbest/delayed-wallet-transactions?tab=readme-ov-file#delayed-wallet-transactions" passHref target="_blank">
+             <Button variant="ghost">About</Button>
+          </Link>
+          <LedgerDrawer />
+        </div>
       </div>
 
-      {isLoading && <p>Loading wallets...</p>}
+      {isLoading && <p>Waiting for Lambda to warm..</p>}
       {error && <p className="text-red-500">{error}</p>}
 
       {!isLoading && !error && (

@@ -70,7 +70,6 @@ export function CreateWalletDialog({ onWalletCreated }: { onWalletCreated: () =>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField control={form.control} name="user_id" render={({ field }) => <FormItem><FormLabel>User ID</FormLabel><FormControl><Input {...field} disabled /></FormControl><FormMessage /></FormItem>} />
             <FormField control={form.control} name="name" render={({ field }) => <FormItem><FormLabel>Wallet Name</FormLabel><FormControl><Input placeholder="e.g., My Savings" {...field} /></FormControl><FormMessage /></FormItem>} />
             <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? 'Creating...' : 'Create'}</Button>
           </form>

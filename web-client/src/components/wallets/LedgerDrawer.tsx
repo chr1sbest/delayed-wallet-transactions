@@ -56,7 +56,7 @@ export function LedgerDrawer() {
                     <p className={`font-bold text-lg w-20 sm:w-24 text-right ${amountColor}`}>
                       {amountPrefix}{amount}
                     </p>
-                    <div>
+                    <div className="truncate">
                       <p className="font-semibold truncate">{entry.description}</p>
                       <p className="text-xs text-gray-500">Tx: {entry.transaction_id?.substring(0, 8)}...</p>
                       <p className="text-xs text-gray-500">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'N/A'}</p>
