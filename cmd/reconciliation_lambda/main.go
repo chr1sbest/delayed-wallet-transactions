@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
 	"os"
 	"time"
 
@@ -21,7 +20,7 @@ import (
 var store storage.TransactionReader
 var sqsScheduler scheduler.CronScheduler
 
-const stuckTransactionThreshold = 20 * time.Minute
+const stuckTransactionThreshold = 30 * time.Minute
 
 func init() {
 	// Load environment variables for local testing.
@@ -47,33 +46,8 @@ func init() {
 	store = dydbstore.NewTransactionReader(dbClient, transactionsTable)
 }
 
-// pingAPIHeartbeat sends a GET request to the API to keep it warm.
-func pingAPIHeartbeat() {
-	heartbeatURL := os.Getenv("API_HEARTBEAT_URL")
-	if heartbeatURL == "" {
-		log.Println("API_HEARTBEAT_URL not set, skipping heartbeat.")
-		return
-	}
-
-	log.Printf("Pinging API heartbeat at %s to keep API warm.", heartbeatURL)
-	resp, err := http.Get(heartbeatURL)
-	if err != nil {
-		log.Printf("ERROR: failed to ping API heartbeat: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		log.Printf("API heartbeat successful: %s", resp.Status)
-	} else {
-		log.Printf("ERROR: API heartbeat failed with status: %s", resp.Status)
-	}
-}
-
 // HandleRequest is triggered by an EventBridge Schedule.
 func HandleRequest(ctx context.Context) error {
-	pingAPIHeartbeat()
-
 	log.Println("Starting reconciliation process for stuck transactions...")
 
 	stuckTxs, err := store.GetStuckTransactions(ctx, stuckTransactionThreshold)

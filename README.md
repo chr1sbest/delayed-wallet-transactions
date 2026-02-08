@@ -30,7 +30,7 @@ This service is built using a modern, event-driven architecture on AWS. The main
   1. The API service reserves funds and publishes a transaction message to an **SQS Queue**.
   2. A **Settlement Lambda (`cmd/settlement_lambda`)** consumes this message, performs the final settlement, and creates the ledger entries. This flow uses SQS's `DelaySeconds` feature for transactions scheduled in the future (up to 15 minutes).
 
-- **Reconciliation Lambda (`cmd/reconciliation_lambda`):** A scheduled Lambda that runs periodically (e.g., every 20 minutes) to find and re-enqueue transactions that may have become "stuck" in a `RESERVED` state due to transient failures. This makes the system self-healing.
+- **Reconciliation Lambda (`cmd/reconciliation_lambda`):** A scheduled Lambda that runs periodically (every 30 minutes) to find and re-enqueue transactions that may have become "stuck" in a `RESERVED` state due to transient failures. This makes the system self-healing.
 
 
 ## Cruxes
