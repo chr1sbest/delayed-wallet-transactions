@@ -5,11 +5,11 @@ This AWS Lambda function serves as a self-healing mechanism for the transaction 
 ## Trigger
 
 - **Source**: Amazon EventBridge (or CloudWatch Events) Schedule
-- **Event**: The function is invoked on a fixed schedule (every 30 minutes).
+- **Event**: The function is invoked on a fixed schedule (every 6 hours).
 
 ## Core Logic
 
-1.  **Scan for Stuck Transactions**: The lambda queries the `Transactions` DynamoDB table to find all transactions that have been in the `RESERVED` state for longer than a predefined `stuckTransactionThreshold` (30 minutes).
+1.  **Scan for Stuck Transactions**: The lambda queries the `Transactions` DynamoDB table to find all transactions that have been in the `RESERVED` state for longer than a predefined `stuckTransactionThreshold` (6 hours).
 
 2.  **Re-enqueue**: For each stuck transaction found, the lambda re-enqueues it into the main settlement SQS queue.
 

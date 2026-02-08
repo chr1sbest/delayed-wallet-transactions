@@ -20,7 +20,7 @@ import (
 var store storage.TransactionReader
 var sqsScheduler scheduler.CronScheduler
 
-const stuckTransactionThreshold = 30 * time.Minute
+const stuckTransactionThreshold = 6 * time.Hour
 
 func init() {
 	// Load environment variables for local testing.

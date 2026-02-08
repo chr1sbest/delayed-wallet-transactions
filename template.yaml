@@ -87,7 +87,7 @@ Resources:
         Scheduler:
           Type: Schedule
           Properties:
-            Schedule: "rate(30 minutes)"
+            Schedule: "rate(6 hours)"
       Environment:
         Variables:
           DYNAMODB_TRANSACTIONS_TABLE_NAME: !Ref TransactionsTable
